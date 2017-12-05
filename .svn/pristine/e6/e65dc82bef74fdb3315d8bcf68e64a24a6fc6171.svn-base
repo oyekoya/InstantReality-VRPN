@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">
+<X3D xmlns:xsd='http://www.w3.org/2001/XMLSchema-instance' profile='Full' version='3.0' xsd:noNamespaceSchemaLocation='http://www.web3d.org/specifications/x3d-3.0.xsd'>
+  <Scene DEF='scene'>
+    <IOSensor DEF='io' type='zdtkInstantIOTrackerNode' dtkSharedMemName='zSpace' meterRatio='1.0'>
+      <field accessType='outputOnly' name='trackerpos*' type='SFVec3f'/>
+      <field accessType='outputOnly' name='trackerrot*' type='SFRotation'/>
+	  <field accessType='outputOnly' name='styluspos*' type='SFVec3f'/>
+      <field accessType='outputOnly' name='stylusrot*' type='SFRotation'/>
+	  <field accessType='outputOnly' name='button0' type='SFBool'/>
+	  <field accessType='outputOnly' name='button1' type='SFBool'/>
+	  <field accessType='outputOnly' name='button2' type='SFBool'/>
+    </IOSensor>
+    <Shape>
+      <Text DEF='text' string='"Head Tracking:"  "    Pos: undef" "    Rot: undef" 
+	                           "Stylus Tracking" "    Pos: undef" "    Rot: undef" 
+							   "Button 1: released" "Button 2: released" "Button 3: released"'/>
+    </Shape>
+    <Script DEF='print'>
+      <field accessType='initializeOnly' name='text' type='SFNode'>
+        <Text USE='text'/>
+      </field>
+      <field accessType='inputOnly' name='tpos' type='SFVec3f'/>
+      <field accessType='inputOnly' name='trot' type='SFRotation'/>
+	  <field accessType='inputOnly' name='spos' type='SFVec3f'/>
+      <field accessType='inputOnly' name='srot' type='SFRotation'/>
+	  <field accessType='inputOnly' name='b0' type='SFBool'/>
+      <field accessType='inputOnly' name='b1' type='SFBool'/>
+	  <field accessType='inputOnly' name='b2' type='SFBool'/>
+      <field accessType='inputOnly' name='trot' type='SFRotation'/><![CDATA[javascript:
+
+  function tpos(value) 
+  {
+    text.string[1] = '    Pos: ' + Math.round(value.x*100)/100 + ' ' + Math.round(value.y*100)/100 + ' ' + Math.round(value.z*100)/100; 
+  }
+
+  function trot(value) 
+  {
+    text.string[2] = '    Rot: ' + Math.round(value.x*100)/100 + ' ' + Math.round(value.y*100)/100 + ' ' + Math.round(value.z*100)/100; 
+  }
+
+  function spos(value) 
+  {
+    text.string[4] = '    Pos: ' + Math.round(value.x*100)/100 + ' ' + Math.round(value.y*100)/100 + ' ' + Math.round(value.z*100)/100; 
+  }
+
+  function srot(value) 
+  {
+    text.string[5] = '    Rot: ' + Math.round(value.x*100)/100 + ' ' + Math.round(value.y*100)/100 + ' ' + Math.round(value.z*100)/100 
+  }
+
+  function b0(value) 
+  {
+    text.string[6] = 'Button 0: ' + value; 
+  }
+  
+  function b1(value) 
+  {
+    text.string[7] = 'Button 1: ' + value; 
+  }
+  
+  function b2(value) 
+  {
+    text.string[8] = 'Button 2: ' + value; 
+  }
+  ]]>
+    </Script>
+    <ROUTE fromNode='io' fromField='trackerpos*' toNode='print' toField='tpos'/>
+    <ROUTE fromNode='io' fromField='trackerrot*' toNode='print' toField='trot'/>
+    <ROUTE fromNode='io' fromField='styluspos*' toNode='print' toField='spos'/>
+    <ROUTE fromNode='io' fromField='stylusrot*' toNode='print' toField='srot'/>
+	<ROUTE fromNode='io' fromField='button0' toNode='print' toField='b0'/>
+    <ROUTE fromNode='io' fromField='button1' toNode='print' toField='b1'/>
+    <ROUTE fromNode='io' fromField='button2' toNode='print' toField='b2'/>
+  </Scene>
+</X3D>

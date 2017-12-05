@@ -1,0 +1,87 @@
+/**
+
+Copyright 2009-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _HVR_GADGETTRACKER_HH_
+#define _HVR_GADGETTRACKER_HH_
+
+#include <HVR/HVR.hh>
+#include <HVR/HVRTrackerNode.hh>
+
+#ifdef HAVE_GADGETEER
+
+#include <H3D/X3DNode.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3DUtil/Threads.h>
+
+#include <H3D/SFString.h>
+
+#include <gadget/Type/PositionInterface.h>
+
+
+namespace HVR {
+  
+  /**
+     Tracker node that is using Gadgeteer to read off information from
+     any supported tracker.
+  */
+  class HVR_API GadgetTracker
+    : public HVRTrackerNode,
+      public H3DUtil::PeriodicThread {
+    
+  public:
+    
+    GadgetTracker
+      ( H3D::Inst< H3D::SFNode > _metadata = 0,
+        H3D::Inst< EventSink > _eventSink = 0,
+        
+        H3D::Inst< TSSField(H3D::SFMatrix4f) > _rawMatrix = 0,
+        H3D::Inst< TSSField(H3D::SFVec3f) > _rawPosition = 0,
+        H3D::Inst< TSSField(H3D::SFRotation) > _rawOrientation = 0,
+        
+        H3D::Inst< CalibratedMatrix > _trackerMatrix = 0,
+        H3D::Inst< CalibratedPosition > _trackerPosition = 0,
+        H3D::Inst< CalibratedOrientation > _trackerOrientation = 0,
+        
+        H3D::Inst< H3D::SFMatrix4f > _positionCalibration = 0,
+        H3D::Inst< H3D::SFRotation > _orientationCalibration = 0,
+        
+        H3D::Inst< H3D::SFString > _trackerName = 0 );
+    
+    virtual ~GadgetTracker();
+    
+    void initialize();
+    
+    std::auto_ptr< H3D::SFString > trackerName;
+    
+    static H3D::H3DNodeDatabase database;
+    
+  protected:
+    gadget::PositionInterface interface;
+    static H3DUtil::PeriodicThreadBase::CallbackCode callback(void *data);
+  };
+}
+
+#endif
+#endif

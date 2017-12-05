@@ -1,0 +1,92 @@
+/**
+   
+Copyright 2007, 2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+*/
+
+
+#ifndef _HVR_HMDVIEWPOINT_HH_
+#define _HVR_HMDVIEWPOINT_HH_
+
+#include <HVR/HVR.hh>
+#include <HVR/HVRTrackerNode.hh>
+
+#include <H3D/Viewpoint.h>
+
+#include <H3D/SFFloat.h>
+#include <H3D/SFMatrix4f.h>
+#include <H3D/SFVec3f.h>
+#include <H3D/SFString.h>
+#include <H3D/SFInt32.h>
+
+
+namespace HVR {
+  
+  /**
+     This is a Viewpoint node that produces a HMD style view, where
+     the screen follows the head.
+     
+     \beginX3D
+     \exposedField marker \n1 SFTracker \n2 (0) \n3
+      The tracker that defines the world coordinates for this
+      viewpoint. \eol
+     \endX3D
+  */
+  class HVR_API HMDViewpoint
+    : public H3D::Viewpoint {
+    
+  protected:
+    
+    struct SFTrackerNode
+      : H3D::TypedSFNode<HVRTrackerNode> {
+      inline ~SFTrackerNode(){ setValue(0); }
+      void onAdd(Node *n);
+      void onRemove(Node *n);
+    };
+    
+  public:
+    
+    HMDViewpoint( H3D::Inst< SFSetBind > _set_bind = 0,
+                  H3D::Inst< H3D::SFVec3f > _centerOfRotation = 0,
+                  H3D::Inst< H3D::SFString > _description = 0,
+                  H3D::Inst< H3D::SFFloat > _fieldOfView = 0,
+                  H3D::Inst< H3D::SFBool > _jump = 0,
+                  H3D::Inst< H3D::SFNode > _metadata = 0,
+                  H3D::Inst< SFOrientation > _orientation = 0,
+                  H3D::Inst< SFPosition > _position = 0,
+                  H3D::Inst< H3D::SFBool > _retainUserOffsets = 0,
+                  H3D::Inst< H3D::SFTime > _bindTime = 0,
+                  H3D::Inst< H3D::SFBool > _isBound = 0,
+                  H3D::Inst< H3D::SFMatrix4f > _accForwardMatrix = 0,
+                  H3D::Inst< H3D::SFMatrix4f > _accInverseMatrix = 0,
+                  
+                  H3D::Inst< SFTrackerNode > _tracker = 0 );
+    
+    /** The tracker that controls this viewpoint. */
+    auto_ptr< SFTrackerNode > tracker;
+    
+    static H3D::H3DNodeDatabase database;
+    
+  };
+}
+
+#endif

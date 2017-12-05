@@ -1,0 +1,129 @@
+/**
+
+Copyright 2009-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _HVR_HVRTRACKERNODE_HH_
+#define _HVR_HVRTRACKERNODE_HH_
+
+#include <HVR/HVR.hh>
+
+#include <H3D/SFVec3f.h>
+#include <H3D/SFMatrix4f.h>
+#include <H3D/SFRotation.h>
+
+#include <H3D/X3DNode.h>
+#include <H3D/H3DNodeDatabase.h>
+
+#include <H3D/ThreadSafeFields.h>
+
+namespace HVR {
+  
+  /**
+     Base type for trackers providing means for asynchronous update of
+     raw tracker data and calibration of position and orientation.
+  */
+  class HVR_API HVRTrackerNode :
+    public H3D::X3DChildNode {
+    
+  protected:
+    
+    struct EventSink
+      : public H3D::Field {
+      void update();
+    };
+    
+    struct HVR_API CalibratedMatrix
+      : public H3D::TypedField< H3D::SFMatrix4f,
+                                H3D::Types< H3D::SFVec3f,
+                                            H3D::SFRotation > > {
+      void update();
+    };
+    
+    struct HVR_API CalibratedPosition
+      : public H3D::TypedField< H3D::SFVec3f,
+                                H3D::Types< H3D::SFVec3f,
+                                            H3D::SFMatrix4f > > {
+      void update();
+    };
+    
+    struct HVR_API CalibratedOrientation
+      : public H3D::TypedField< H3D::SFRotation,
+                                H3D::Types< H3D::SFRotation,
+                                            H3D::SFRotation > > {
+      void update();
+    };
+    
+    
+  public:
+    
+    HVRTrackerNode
+      ( H3D::Inst< H3D::SFNode > _metadata = 0,
+        H3D::Inst< EventSink > _eventSink = 0,
+        
+        H3D::Inst< TSSField(H3D::SFMatrix4f) > _rawMatrix = 0,
+        H3D::Inst< TSSField(H3D::SFVec3f) > _rawPosition = 0,
+        H3D::Inst< TSSField(H3D::SFRotation) > _rawOrientation = 0,
+        
+        H3D::Inst< CalibratedMatrix > _trackerMatrix = 0,
+        H3D::Inst< CalibratedPosition > _trackerPosition = 0,
+        H3D::Inst< CalibratedOrientation > _trackerOrientation = 0,
+        
+        H3D::Inst< H3D::SFMatrix4f > _positionCalibration = 0,
+        H3D::Inst< H3D::SFRotation > _orientationCalibration = 0 );
+    
+    virtual ~HVRTrackerNode();
+    
+    virtual string defaultXMLContainerField() {
+      return "tracker"; }
+    
+    virtual void traverseSG(H3D::TraverseInfo &ti);
+    
+    std::auto_ptr< EventSink > eventSink;
+    
+    std::auto_ptr< TSSField(H3D::SFMatrix4f) > rawMatrix;
+    std::auto_ptr< TSSField(H3D::SFVec3f) > rawPosition;
+    std::auto_ptr< TSSField(H3D::SFRotation) > rawOrientation;
+    
+    std::auto_ptr< CalibratedMatrix > trackerMatrix;
+    std::auto_ptr< CalibratedPosition > trackerPosition;
+    std::auto_ptr< CalibratedOrientation > trackerOrientation;
+    
+    std::auto_ptr< H3D::SFMatrix4f > positionCalibration;
+    std::auto_ptr< H3D::SFRotation > orientationCalibration;
+    
+    static H3D::H3DNodeDatabase database;
+    
+  protected:
+    
+    /** Call this function to update the tracker data. */
+    void updateRawMatrix(const H3D::Matrix4f &m);
+    
+    /** Call this function to update the tracker data. */
+    void updateRawPositionOrientation(const H3D::Vec3f &x,
+                                      const H3D::Rotation &r);
+    
+  };
+}
+
+#endif

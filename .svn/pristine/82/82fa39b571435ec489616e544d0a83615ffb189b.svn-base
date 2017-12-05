@@ -1,0 +1,183 @@
+/**
+
+Copyright 2003-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+#include <HVR/InterSenseTracker.hh>
+
+#ifdef HAVE_ISENSE
+
+#include <H3D/Scene.h>
+#include <Candy/Debug.hh>
+
+#include <stdio.h>
+
+using namespace H3D;
+using namespace HVR;
+
+ISD_TRACKER_HANDLE InterSenseTracker::handle = 0;
+ISD_TRACKER_INFO_TYPE InterSenseTracker::tracker_info;
+ISD_HARDWARE_INFO_TYPE InterSenseTracker::hardware_info;
+int InterSenseTracker::maxStations = 0;
+
+H3DNodeDatabase InterSenseTracker::database
+( "InterSenseTracker",
+  &(newInstance<InterSenseTracker>),
+  typeid( InterSenseTracker ),
+  &HVRTrackerNode::database );
+
+namespace InterSenseTrackerInternals {
+  FIELDDB_ELEMENT( InterSenseTracker, deviceId, INPUT_OUTPUT );
+}
+
+InterSenseTracker::InterSenseTracker
+( Inst< SFNode > _metadata,
+  Inst< EventSink > _eventSink,
+  
+  Inst< TSSField(SFMatrix4f) > _rawMatrix,
+  Inst< TSSField(SFVec3f) > _rawPosition,
+  Inst< TSSField(SFRotation) > _rawOrientation,
+  
+  Inst< CalibratedMatrix > _trackerMatrix,
+  Inst< CalibratedPosition > _trackerPosition,
+  Inst< CalibratedOrientation > _trackerOrientation,
+  
+  Inst< SFMatrix4f > _positionCalibration,
+  Inst< SFRotation > _orientationCalibration,
+  
+  Inst< SFInt32 > _deviceId,
+  Inst< Collector > _collector )
+  : HVRTrackerNode( _metadata,
+                    _eventSink,
+                    _rawMatrix,
+                    _rawPosition,
+                    _rawOrientation,
+                    _trackerMatrix,
+                    _trackerPosition,
+                    _trackerOrientation,
+                    _positionCalibration,
+                    _orientationCalibration ),
+    
+    deviceId( _deviceId ),
+    collector( _collector ) {
+  
+  if( !handle ){
+    handle = ISD_OpenTracker( (Hwnd) NULL, 0, FALSE, TRUE );
+  }
+  
+  ref_count++;
+  
+  type_name = "InterSenseTracker";
+  database.initFields( this );
+
+  collector->setOwner(this);
+  Scene::time->route(collector);
+  deviceId->route(collector);
+  collector->route(Scene::eventSink);
+}
+
+InterSenseTracker::~InterSenseTracker(){
+  
+  ref_count--;
+  
+  if( ! ref_count ){
+    if( handle > 0 ){
+      ISD_CloseTracker(handle); }
+    handle = 0;
+  }
+}
+
+void InterSenseTracker::Collector::update(){
+  
+  InterSenseTracker *tracker = static_cast<InterSenseTracker*>(getOwner());
+  
+  int id = dynamic_cast<SFInt32*>(routes_in[1])->getValue();
+  
+  Vec3f pos; Rotation rot;
+  tracker->getDevicePosition(id,pos,rot);
+  tracker->updateRawPositionOrientation(pos,rot);
+}
+
+unsigned int InterSenseTracker::getNumberOfDevices(){
+  
+  if( handle < 1 ){
+    return 0;
+  }
+  
+  ISD_STATION_INFO_TYPE station;
+  memset( (void *)&station, 0, sizeof(station) );
+  
+  for( int i = 0 ; i < ISD_MAX_STATIONS ; i++ ){
+    ISD_GetStationConfig(handle, &station, i+1, false );
+    if( !station.State ){ return i; }
+  }
+  
+  return ISD_MAX_STATIONS;
+}
+
+bool InterSenseTracker::getDevicePosition( unsigned int idx,
+                                           Vec3f &pos,
+                                           Rotation &orn ){
+  
+  if( handle < 1 || idx >= ISD_MAX_STATIONS ){
+    return false;
+  }
+  
+  ISD_STATION_INFO_TYPE station;
+  memset( (void *)&station, 0, sizeof(station) );
+  ISD_GetStationConfig(handle, &station, idx+1, false );
+  
+  ISD_TRACKING_DATA_TYPE data;
+  memset( (void *)&data, 0, sizeof(data) );
+  ISD_GetTrackingData(handle,&data);
+  
+  std::cerr << idx << " "
+            << data.Station[idx].Position[0] << " "
+            << data.Station[idx].Position[1] << " "
+            << data.Station[idx].Position[2] << std::endl;
+  
+  pos = Vec3f( data.Station[idx].Position[0],
+               data.Station[idx].Position[1],
+               data.Station[idx].Position[2] );
+  
+  switch( station.AngleFormat ){
+  case ISD_EULER:
+    orn = Rotation( Vec3f(data.Station[idx].Euler[0],
+                          data.Station[idx].Euler[1],
+                          data.Station[idx].Euler[2]) );
+    break;
+  case ISD_QUATERNION:
+    orn = Rotation( Quaternion(data.Station[idx].Quaternion[0],
+                               data.Station[idx].Quaternion[1], 
+                               data.Station[idx].Quaternion[2],
+                               data.Station[idx].Quaternion[3]) );
+    break;
+  default:
+    orn = Rotation( Vec3f(data.Station[idx].Euler[0],
+                          data.Station[idx].Euler[1],
+                          data.Station[idx].Euler[2]) );
+    CANDY_RUNTIME_WARNING_ONCE("InterSenseTracker","Station angle format error: " << station.AngleFormat << ", could be Euler " << data.Station[idx].Euler[0] << " " << data.Station[idx].Euler[1] << " " << data.Station[idx].Euler[2]);
+  }
+  return true;
+}
+
+#endif

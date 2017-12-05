@@ -1,0 +1,261 @@
+/**
+   Copyright 2006, Karljohan Lundin
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include <Candy/I18N.hh>
+
+#ifdef HAVE_XERCES
+
+#include <vector>
+
+#include <H3D/Scene.h>
+
+#include <xercesc/sax/HandlerBase.hpp>
+#include <xercesc/util/XMLString.hpp>
+#include <xercesc/parsers/SAXParser.hpp>
+
+XERCES_CPP_NAMESPACE_USE
+
+using namespace Candy;
+using namespace H3D;
+
+
+H3DNodeDatabase I18N::database
+( "I18N",
+  &(newInstance<I18N>),
+  typeid( I18N ),
+  &X3DChildNode::database );
+
+namespace I18NInternals {
+  FIELDDB_ELEMENT( I18N, url,      INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( I18N, language, INPUT_ONLY );
+}
+
+
+I18N::I18N( Inst< SFNode   > _metadata,
+            Inst< MFString > _url,
+            Inst< MFString > _language,
+            Inst< Update   > _update )
+  : X3DChildNode(_metadata),
+    X3DUrlObject(_url),
+    H3DDynamicFieldsObject( &database ),
+    language( _language ),
+    update( _update ) {
+  
+  type_name = "I18N";
+  database.initFields( this );
+  
+  update->setName("I18N-Update");
+  update->setOwner(this);
+  
+  language->routeNoEvent( update, id );
+  update->routeNoEvent( Scene::eventSink, id );
+  
+  language->push_back("en",id);
+}
+
+void I18N::Update::update(){
+  
+  I18N *parent = static_cast<I18N*>(owner);
+  
+  typedef std::vector<std::string> strings_t;
+  const strings_t &langs =
+    static_cast<MFString*>(routes_in[0])->getValue(parent->id);
+  
+  for( AutoPtrVector< Field >::iterator field =
+         parent->dynamic_fields.begin() ;
+       field != parent->dynamic_fields.end() ; field++ ){
+    
+    std::string name = (*field)->getName();
+    
+    SFString *sfs = dynamic_cast<SFString*>(*field);
+    MFString *mfs = dynamic_cast<MFString*>(*field);
+    
+    if( name.find("_M",name.size()-2) < std::string::npos ){
+      name.erase( name.size()-2, 2 ); }
+    
+    bool has_value = false;
+    for( strings_t::const_iterator lang = langs.begin() ;
+         lang != langs.end() ; lang++ ){
+      
+      if( parent->languages[*lang].count(name) ){
+        
+        if( sfs ){
+          sfs->setValue( parent->languages[*lang][name],
+                         parent->id ); }
+        
+        if( mfs ){
+          std::vector<std::string> val;
+          std::stringstream str(parent->languages[*lang][name]);
+          char line[512];
+          while( !str.eof() ){
+            str.getline(line,512);
+            val.push_back(line);
+          }
+          mfs->swap(val,parent->id);
+        }
+        
+        has_value = true;
+        break;
+      }
+    }
+    
+    if( !has_value ){
+      if( sfs ){
+        sfs->setValue( "", parent->id ); }
+      if( mfs ){
+        mfs->clear(parent->id); }
+    }
+  }  
+}
+
+void I18N::initialize(){
+  X3DChildNode::initialize();
+  
+  typedef std::vector<std::string> strings_t;
+  const strings_t &urls
+    = url->getValue(id);
+  
+  std::string file;
+  for( strings_t::const_iterator url = urls.begin() ;
+       url != urls.end() ; url++ ){
+    if( (file = resolveURLAsFile(*url)).size() ){
+      break; }}
+  
+  if( !file.size() ){
+    std::cerr << "None of the provided URLs"
+              << " could be read!" << std::endl;
+    return;
+  }
+  
+  SAXParser* parser = new SAXParser();
+  parser->setDoNamespaces(true);
+  
+  parser->setDocumentHandler(static_cast<DocumentHandler*>(this));
+  parser->setErrorHandler((ErrorHandler*)this);
+  
+  try {
+    parser->parse(file.c_str());
+  }
+  catch( const XMLException& toCatch ){
+    char* message = XMLString::transcode(toCatch.getMessage());
+    std::cerr << "XML: Exception message is: \n"
+              << message << std::endl;
+    XMLString::release(&message);
+    exit(1);
+  }
+  catch(const SAXParseException& toCatch ){
+    char* message = XMLString::transcode(toCatch.getMessage());
+    std::cerr << "XML: Exception message is: \n"
+              << message << std::endl;
+    XMLString::release(&message);
+    exit(1);
+  }
+  catch( ... ){
+    std::cerr << "XML: Unexpected Exception \n" ;
+    exit(1);
+  }
+  
+  delete parser;
+}
+
+void I18N::startDocument(){
+  parse_value = 0;
+  parse_language = "";
+}
+
+void I18N::startElement( const XMLCh* const _name,
+                         AttributeList& atts ){
+  char* name = XMLString::transcode(_name);
+  
+  if( !strcmp(name,"set") ){
+    char* lang = XMLString::transcode
+      (atts.getValue("lang"));
+    
+    if( !lang ){
+      std::cerr << "XML error! (missing lang in set)" << std::endl;
+      exit(1); }
+    
+    parse_language = lang;
+    
+    XMLString::release(&lang);
+  }
+  else if( !strcmp(name,"field") ){
+    char* name = XMLString::transcode
+      (atts.getValue("name"));
+    char* value = XMLString::transcode
+      (atts.getValue("value"));
+    
+    if( !name ){
+      std::cerr << "XML error! (missing field attribute)" << std::endl;
+      exit(1); }
+    
+    Field *field = database.getField(this,name);
+    if( !field ){
+      field = new SFString("");
+      if( !addField( name, Field::OUTPUT_ONLY,
+                     field ) ){
+        std::cerr << "Unknown error!" << std::endl;
+        exit(1);
+      }
+      if( !addField( std::string(name)+"_M", Field::OUTPUT_ONLY,
+                     new MFString ) ){
+        std::cerr << "Unknown error!" << std::endl;
+        exit(1);
+      }
+    }
+    if( value ){
+      languages[parse_language][name] = value; }
+    else{
+      parse_value = &languages[parse_language][name]; }
+    
+    if( value ){
+      XMLString::release(&value); }
+    XMLString::release(&name);
+  }
+  else if( strcmp(name,"i18n") ){
+    std::cerr << "XML: Unknown error - check XML validity"
+              << std::endl; }
+  
+  XMLString::release(&name);
+}
+
+void I18N::characters( const XMLCh* const chars,
+                       const unsigned int length ){
+  char* text = XMLString::transcode(chars);
+  
+  if( parse_value ){
+    *parse_value = text; }
+  
+  XMLString::release(&text);
+}
+
+void I18N::endElement( const XMLCh* const _name ){
+  char* name = XMLString::transcode(_name);
+  
+  if( !strcmp(name,"field") ){
+    parse_value = 0; }
+  
+  XMLString::release(&name);
+}
+
+void I18N::endDocument(){}
+
+#endif

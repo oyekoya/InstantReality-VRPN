@@ -1,0 +1,96 @@
+/**
+   Copyright 2003-2007, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#ifndef _CANDY_DEBUG_HH_
+#define _CANDY_DEBUG_HH_
+
+#include <stdio.h>
+#include <assert.h>
+#include <map>
+
+#ifdef NDEBUG
+# undef CANDY_DEBUG_LEVEL
+# define CANDY_DEBUG_LEVEL 0
+#endif
+
+#ifndef CANDY_DEBUG_LEVEL
+# define CANDY_DEBUG_LEVEL 2
+#endif
+
+#include <Candy/Candy.hh>
+#include <H3DUtil/Console.h>
+
+namespace Candy {
+  
+  typedef std::pair<void*,std::string> once_key_t;
+  typedef std::map<once_key_t,int> once_t;
+  
+  class CANDY_API Debug {
+  public:
+    static once_t once;
+  };
+  
+  class CANDY_API CandyException
+    : public H3DUtil::Exception::H3DAPIException,
+      public std::exception {
+  public:
+    CandyException( const string &_message = "",
+                   const string &_function = "",
+                   const string &_filename = "",
+                   const int &_linenumber = -1 )
+      throw () :
+      H3DUtil::Exception::H3DAPIException( _message, _function,
+                                           _filename, _linenumber){}
+    inline ~CandyException() throw() {}
+    inline const char* what() const throw() {
+      return message.c_str(); }
+  protected:
+    string className() const { return "CandyException"; }
+  };
+}
+
+#if CANDY_DEBUG_LEVEL > 1
+# define CANDY_DEBUG_LOG_I(s) H3D::Console(1) << __FILE__ << ":" << __LINE__ << " (" << __FUNCTION__ << ")" << std::endl << s << std::endl
+# define CANDY_DEBUG_LOG() H3D::Console(0) << __FILE__ << ":" << __LINE__ << " (" << __FUNCTION__ << ")" << std::endl
+#else
+# define CANDY_DEBUG_LOG_I(s) // s
+# define CANDY_DEBUG_LOG() // s
+#endif
+
+#if CANDY_DEBUG_LEVEL > 0
+# define CANDY_DEBUG_LOG_W(s) H3D::Console(2) << __FILE__ << ":" << __LINE__ << " (" << __FUNCTION__ << ")" << std::endl << s << std::endl
+#else
+# define CANDY_DEBUG_LOG_W(s) // s
+#endif
+
+#define CANDY_DEPRECATED() (Candy::Debug::once[std::pair<void*,std::string>(this,__FUNCTION__)]++?(void*)0:( H3D::Console(2) << "Function '" << __FUNCTION__ << "' is deprecated and may be removed in future releases of Candy." << std::endl ))
+#define CANDY_DEPRECATED_BY(s) (Candy::Debug::once[std::pair<void*,std::string>(this,__FUNCTION__)]++?(void*)0:( H3D::Console(2) << "Function '" << __FUNCTION__ << "' is deprecated and may be removed in future releases of Candy. Function '" << s << "' should be used instead.\n" ))
+
+#define CANDY_RUNTIME_WARNING(w,s) (H3D::Console(3) << w << std::endl << s << std::endl)
+
+#define CANDY_RUNTIME_WARNING_ONCE(w,s) (Candy::Debug::once[std::pair<void*,std::string>(this,w#s)]++?(void*)0:(H3D::Console(3) << w << std::endl << s << std::endl))
+
+#define CANDY_RUNTIME_WARNING_RESET(w,s) (Candy::Debug::once[std::pair<void*,std::string>(this,w#s)] = 0)
+
+#define CANDY_EXCEPTION(s) CandyException(s,__FUNCTION__,__FILE__,__LINE__)
+
+#endif

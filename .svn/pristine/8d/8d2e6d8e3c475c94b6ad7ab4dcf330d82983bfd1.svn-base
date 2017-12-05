@@ -1,0 +1,184 @@
+#include "FooNode.h"
+
+#include <stdlib.h>
+
+#include <iostream>
+#include <sstream>
+#include <string>
+
+#include <InstantIO/OutSlot.h>
+#include <InstantIO/FieldAccessor.h>
+
+namespace InstantIO {
+
+// Node Type 
+NodeType FooNode::type_(
+    typeName_,
+    &create,
+    shortDescription_,
+    longDescription_,
+    author_,
+    fields_,
+    sizeof(fields_) / sizeof(Field));
+
+const char *FooNode::typeName_ = 
+    "FooNode";
+
+const char *FooNode::shortDescription_ =
+    "Driver for Foo trackers.";
+
+const char *FooNode::longDescription_ = 
+    "This is the long description for the Foo Node";
+
+const char *FooNode::author_ =
+    "Fritz Filter";
+
+// ###ADDCODE###
+// Add additional fields here
+Field FooNode::fields_[] = {
+    Field(
+        "randMax",                              // Name
+        "The rand max for the vector values",   // description
+        "10",                                   // default value
+        FieldAccessor<FooNode, float>(&FooNode::setRandMax, &FooNode::getRandMax)
+    )
+};
+
+//----------------------------------------------------------------------
+FooNode::FooNode() : 
+    ThreadedNode(),
+    randMax_(0),
+    position_(0), 
+    rotation_(0)
+{
+    // Add external route
+    addExternalRoute("*", "{NamespaceLabel}/{SlotLabel}");
+}
+
+//----------------------------------------------------------------------
+FooNode::~FooNode()
+{
+}
+
+//----------------------------------------------------------------------
+Node *FooNode::create()
+{
+    return new FooNode;
+}
+
+//----------------------------------------------------------------------
+NodeType *FooNode::type() const
+{
+    return &type_;
+}
+
+//----------------------------------------------------------------------
+void FooNode::initialize()
+{
+    // handle state and namespace updates
+    Node::initialize();
+
+    // ###ADDCODE###
+    // check/open the device/device-system state
+    // create the dynamic slots for the current device configuration
+    // setState (NODE_ERROR) on error
+
+    std::cerr << "Foo: Run initialize" << std::endl;
+
+    position_ = new OutSlot<Vec3f>("Position of tracker", Vec3f(0.f, 0.f, 0.f));
+    assert(position_ != 0);
+    position_->addListener(*this);
+    addOutSlot("position", position_);
+
+    rotation_ = new OutSlot<Rotation>("Rotation of tracker", Rotation());
+    assert(rotation_ != 0);
+    rotation_->addListener(*this);
+    addOutSlot("rotation", rotation_);
+}
+
+//----------------------------------------------------------------------
+void FooNode::shutdown()
+{
+    // handle state and namespace updates
+    Node::shutdown();
+
+    // ###ADDCODE###
+    // remove all dynamic slots and do other cleanups
+    // setState (NODE_ERROR) on error
+
+    std::cerr << "Foo: Run shutdown" << std::endl;
+
+    if (position_ != 0)
+    {
+        removeOutSlot("position", position_);
+        delete position_;
+        position_ = 0;
+    }
+    if (rotation_ != 0)
+    {
+        removeOutSlot("rotation", rotation_);
+        delete rotation_;
+        rotation_ = 0;
+    }
+}
+
+// Thread method which gets automatically started as soon as a slot is
+// connected
+int FooNode::processData()
+{
+    // ###ADDCODE###
+    // Open/connect to you device
+    // Send/receive data in the waitThread() loop 
+    // setState (NODE_ERROR) and return -1 on error
+
+    bool deviceOpen = true;
+
+    std::cerr << "Foo: Run processData" << std::endl;
+
+    if (deviceOpen)
+        setState(NODE_RUNNING);
+    else
+    {
+        setState (NODE_ERROR);
+        return -1;
+    }
+
+    Vec3f position;
+    Rotation rot;
+
+    // Important: you need to wall waitThread in every loop
+    // time is in millisecond
+    while (waitThread(10))
+    {
+        if (position_ != 0)
+        {      
+            position.set( randMax_ * rand() / RAND_MAX,
+                randMax_ * rand() / RAND_MAX,
+                randMax_ * rand() / RAND_MAX );
+
+            position_->push(position);
+        }
+
+        if (rotation_ != 0)
+        {
+            rot.set ( 1.f * rand() / RAND_MAX,
+                1.f * rand() / RAND_MAX,
+                1.f * rand() / RAND_MAX,
+                1.f * rand() / RAND_MAX );
+
+            rotation_->push(rot);
+        }
+    }
+
+    // Thread finised
+    setState(NODE_SLEEPING);
+
+    //###ADDCODE### 
+    //close device
+
+    std::cerr << "Foo: finish processData" << std::endl;
+
+    return 0;
+}
+
+} // namespace InstantIO

@@ -1,0 +1,176 @@
+# Copyright 2008, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This module provides functionality for loading X3D or VRML files with
+GNU gettext translations for internationalization. All X3D and VRML
+loading functions from H3D are overloaded. Any instance of _(...) is
+replaced with the translation of the argument or the argument itself
+if there is no translation available. You may use _(...) around the
+string to be translated, or inside the string if you want strict
+XML. The functions assume utf-8 encoding but adds an optional argument
+to specify the file encoding.
+
+Example:
+
+import gettext
+gettext.bindtextdomain("MyCoolApp","./resources/")
+import GettextWrapper as GW
+node, def = GW.createX3DFromURL("file.x3d")
+
+You can also use this script to load a full scene with translation
+directly from X3D code. It will look for the references field and use
+metadata string nodes to specify domain and localedir and also to
+specify the url to get the file to load the scene from.
+
+The domain and localedir must be specified first and any following url
+will be loaded with those settings. You may also change domain or
+localedir before loading further urls. It is also recommended that you
+specify a group in which to put the loaded nodes, or else the root of
+the current scene will be replaced.
+
+Example:
+
+<PythonScript url="python/GettextWrapper.py">
+  <MetadataString name="domain" value="MyCoolApp"
+                  containerField="references"/>
+  <MetadataString name="localedir" value="./resources/"
+                  containerField="references"/>
+  <Group USE="THE_GROUP" containerField="references"/>
+  <MetadataString name="url" value="file.x3d"
+                  containerField="references"/>
+</PythonScript>
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+# BEGIN Hack for gettext on Windows
+import os
+if os.name == 'nt':
+  lang = os.getenv('LANG')
+  if lang is None:
+    import locale
+    default_lang, default_enc = locale.getdefaultlocale()
+    if default_lang:
+      lang = default_lang
+  if lang:
+    os.environ['LANG'] = lang
+# END Hack for gettext on Windows
+
+import H3D, re, gettext, codecs
+
+
+def translate(data):
+  regex = re.compile("_\((?P<P1>\"?)(?P<id>[^\)]*)(?P<P2>\"?)\)")
+  m = regex.search(data)
+  while not m is None:
+    data = data[:m.start()] + \
+           m.group('P1') + \
+           gettext.gettext(m.group('id')) + \
+           m.group('P2') + \
+           data[m.end():]
+    m = regex.search(data)
+  return data
+
+
+def createX3DFromURL(url,enc='utf-8'):
+  filename = H3D.resolveURLAsFile(url)
+  fin = codecs.open(filename,enc)
+  arg = fin.read()
+  fin.close()
+  
+  arg = translate(arg)
+  return H3D.createX3DFromString(arg)
+
+def createX3DFromString(arg):
+  arg = translate(arg)
+  return H3D.createX3DFromString(arg)
+
+def createX3DNodeFromURL(url,enc='utf-8'):
+  filename = H3D.resolveURLAsFile(url)
+  fin = codecs.open(filename,enc)
+  arg = fin.read()
+  fin.close()
+  
+  arg = translate(arg)
+  return H3D.createX3DNodeFromString(arg)
+
+def createX3DNodeFromString(arg):
+  arg = translate(arg)
+  return H3D.createX3DNodeFromString(arg)
+
+def createVRMLFromURL(url,enc='utf-8'):
+  filename = H3D.resolveURLAsFile(url)
+  fin = codecs.open(filename,enc)
+  arg = fin.read()
+  fin.close()
+  
+  arg = translate(arg)
+  return H3D.createVRMLFromString(arg)
+
+def createVRMLFromString(arg):
+  arg = translate(arg)
+  return H3D.createVRMLFromString(arg)
+
+def createVRMLNodeFromURL(url,enc='utf-8'):
+  filename = H3D.resolveURLAsFile(url)
+  fin = codecs.open(filename,enc)
+  arg = fin.read()
+  fin.close()
+  
+  arg = translate(arg)
+  return H3D.createVRMLNodeFromString(arg)
+
+def createVRMLNodeFromString(arg):
+  arg = translate(arg)
+  return H3D.createVRMLNodeFromString(arg)
+
+
+g = globals()
+if g.has_key('references'):
+  group = None
+  domain = None
+  localedir = None
+  
+  ref_nodes = references.getValue()
+  for node in ref_nodes:
+    if not node.getField("children") is None:
+      group = node
+    
+    elif node.name.getValue() == "url":
+      urls = node.value.getValue()
+      for url in urls:
+        node = createX3DNodeFromURL(url)[0]
+        if group is None:
+          H3D.Scene.sceneRoot.setValue(node)
+        else:
+          group.children.push_back(node)
+    
+    elif node.name.getValue() == "domain":
+      domain = node.value.getValue()[-1]
+      if not localedir is None:
+        gettext.bindtextdomain(domain,localedir)
+    
+    elif node.name.getValue() == "localedir":
+      localedir = node.value.getValue()[-1]
+      if not domain is None:
+        gettext.bindtextdomain(domain,localedir)
+

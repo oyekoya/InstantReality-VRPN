@@ -1,0 +1,109 @@
+# Copyright 2005-2009, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This Python-script helps controlling a transform in a way simulating
+motion of the viewer. In games and simple applications the viewpoint
+can be used to navigate the 3D world. In some VR systems the VR world
+intersects with the real world and should stay co-located and
+co-registered throughout the simulation. The viewpoint is used to
+navigate relative the real screen in the real world. Instead, here the
+navigation is performed by transforming the world to navigate in.
+
+
+The following must be provided through the "references" field:
+*) the transform node on which to operate.
+
+The following should be routed to:
+1) The "velocity" field, the motion velocity
+3) The "rotation" field, the orientation change
+
+The following may be set:
+1) The "position" field, sets the absolute position
+2) The "orientation" field, sets the absolute orientation
+
+The following may be routed from:
+1) The "position" field, specifies the absolute position
+2) The "orientation" field, specifies the absolute orientation
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+
+T, = references.getValue()
+
+velocity = SFVec3f()
+position = SFVec3f()
+rotation = SFRotation()
+orientation = SFRotation()
+
+class TransformMotion(TypedField( SFBool,
+                                  ( SFTime,
+                                    SFVec3f,
+                                    SFRotation ))):
+  def __init__(self):
+    SFBool.__init__(self)
+    
+    self.position = position.getValue()
+    self.orientation = orientation.getValue()
+    self.last_time = time.getValue()
+    
+  def update(self, event):
+    try:
+      inputs = self.getRoutesIn()
+      this_time = inputs[0].getValue()
+      _velocity = inputs[1].getValue()
+      _rotation = inputs[2].getValue()
+    except:
+      return False
+    
+    dt = ( this_time - self.last_time )
+    self.last_time = this_time
+
+    _rotation.angle *= dt
+    
+    self.position += dt * _velocity
+    self.orientation *= _rotation
+    
+    R = Rotation(self.orientation)
+    R.angle = -R.angle
+    
+    Tr = Matrix4f(1,0,0,-self.position.x,
+                  0,1,0,-self.position.y,
+                  0,0,1,-self.position.z,
+                  0,0,0,1)
+    Tr = Matrix4f(R) * Tr
+    T.matrix.setValue(Tr)
+    
+    position.setValue(self.position)
+    orientation.setValue(self.orientation)
+    
+    return True
+
+transformMotion = TransformMotion()
+time.routeNoEvent(transformMotion)
+velocity.routeNoEvent(transformMotion)
+rotation.routeNoEvent(transformMotion)
+transformMotion.routeNoEvent(eventSink)
+

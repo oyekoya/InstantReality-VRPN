@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2005-2008, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+-->
+<Group>
+  
+  <!--
+      Put your device(s) here if H3DLoad is not configured to load
+      them automatically.
+
+  <DeviceInfo>
+    <AnyDevice/>
+  </DeviceInfo>
+  -->
+  
+  <NavigationInfo
+      type="NONE"/>
+  <Background
+      skyColor="0 0 0" />
+  
+  <Group DEF="ROOT" />
+  
+  <PythonScript
+      DEF="CTRL"
+      url="Calib.py">
+    <Group
+        USE="ROOT"
+        containerField="references" />
+  </PythonScript>
+  
+  <Transform DEF="STYLUS" >
+    <Shape>
+      <Appearance DEF="STYLUS_APP">
+        <Material
+            DEF="STYLUS_MAT"
+            shininess="0.9"
+            diffuseColor="0.6 0.6 1.0"
+            specularColor="1.0 1.0 1.0"/>
+      </Appearance>
+      <Sphere
+          radius="0.01" />
+    </Shape>
+    <Transform
+        translation="0 0 0.035"
+        rotation="1 0 0 1.5708">
+      <Shape>
+        <Appearance USE="STYLUS_APP" />
+        <Cone
+            bottomRadius="0.003"
+            height="0.07" />
+      </Shape>
+    </Transform>
+    <Transform
+        translation="0 0.01 0"
+        rotation="0 1 0 -1.5708">
+      <Shape>
+        <Appearance USE="STYLUS_APP" />
+        <Cone
+            bottomRadius="0.005"
+            height="0.02" />
+      </Shape>
+    </Transform>
+  </Transform>
+  <ROUTE fromNode="CTRL" fromField="trackerPosition"
+         toNode="STYLUS" toField="translation" />
+  <ROUTE fromNode="CTRL" fromField="trackerOrientation"
+         toNode="STYLUS" toField="rotation" />
+  <ROUTE fromNode="CTRL" fromField="stylus_transparency"
+         toNode="STYLUS_MAT" toField="transparency" />
+  
+  <Transform
+      translation="0 0.07 0">
+    <Switch DEF="TEXT">
+      <Shape><!-- State 0 -->
+        <Appearance DEF="TEXT_APP">
+          <Material emissiveColor="1 1 1"/>
+        </Appearance>
+        <Text DEF="TEXT_STATE_0">
+          <FontStyle DEF="TEXT_FONT" size="0.014" justify="MIDDLE"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_0"
+               toNode="TEXT_STATE_0" toField="string"/>
+      </Shape>
+      <Shape><!-- State 1 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_1">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_1"
+               toNode="TEXT_STATE_1" toField="string"/>
+      </Shape>
+      <Shape><!-- State 2 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_2">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_2"
+               toNode="TEXT_STATE_2" toField="string"/>
+      </Shape>
+      <Shape><!-- State 3 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_3">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_3"
+               toNode="TEXT_STATE_3" toField="string"/>
+      </Shape>
+      <Shape><!-- State 4 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_4">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_4"
+               toNode="TEXT_STATE_4" toField="string"/>
+      </Shape>
+      <Shape><!-- State 5 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_5">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_5"
+               toNode="TEXT_STATE_5" toField="string"/>
+      </Shape>
+      <Shape><!-- State 6 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_6">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_6"
+               toNode="TEXT_STATE_6" toField="string"/>
+      </Shape>
+      <Shape><!-- State 7 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_7">
+          <FontStyle USE="TEXT_FONT"/>
+        <ROUTE fromNode="CTRL" fromField="text_state_7"
+               toNode="TEXT_STATE_7" toField="string"/>
+        </Text>
+      </Shape>
+      <Shape><!-- State 8 -->
+        <Appearance USE="TEXT_APP"/>
+        <Text DEF="TEXT_STATE_8">
+          <FontStyle USE="TEXT_FONT"/>
+        </Text>
+        <ROUTE fromNode="CTRL" fromField="text_state_8"
+               toNode="TEXT_STATE_8" toField="string"/>
+      </Shape>
+    </Switch>
+  </Transform>
+  <ROUTE fromNode="CTRL" fromField="state"
+         toNode="TEXT" toField="whichChoice"/>
+  
+</Group>

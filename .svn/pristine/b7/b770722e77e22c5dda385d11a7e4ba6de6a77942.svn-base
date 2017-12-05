@@ -1,0 +1,208 @@
+#include "ZSpaceNode.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+
+#include <iostream>
+#include <sstream>
+#include <string>
+
+
+#include <InstantIO/OutSlot.h>
+#include <InstantIO/FieldAccessor.h>
+
+namespace InstantIO {
+
+// Node Type 
+NodeType ZSpaceNode::type_(
+    typeName_,
+    &create,
+    shortDescription_,
+    longDescription_,
+    author_,
+    fields_,
+    sizeof(fields_) / sizeof(Field));
+
+const char *ZSpaceNode::typeName_ = 
+    "ZSpaceNode";
+
+const char *ZSpaceNode::shortDescription_ =
+    "Driver for ZSpace trackers.";
+
+const char *ZSpaceNode::longDescription_ = 
+    "This is the long description for the ZSpace Node";
+
+const char *ZSpaceNode::author_ =
+    "Fritz Filter";
+
+// ###ADDCODE###
+// Add additional fields here
+Field ZSpaceNode::fields_[] = {
+    Field(
+        "randMax",                              // Name
+        "The rand max for the vector values",   // description
+        "10",                                   // default value
+        FieldAccessor<ZSpaceNode, float>(&ZSpaceNode::setRandMax, &ZSpaceNode::getRandMax)
+    ),
+
+	Field(
+		"connectionString",
+		"The VRPNServer url",
+		"Tracker0@localhost",
+		FieldAccessor<ZSpaceNode, std::string>(&ZSpaceNode::setConnectionString, &ZSpaceNode::getConnectionString)
+	)
+};
+
+//----------------------------------------------------------------------
+ZSpaceNode::ZSpaceNode() : 
+    ThreadedNode(),
+    randMax_(0),
+    position_(0), 
+    rotation_(0)
+{
+    // Add external route
+    addExternalRoute("*", "{NamespaceLabel}/{SlotLabel}");
+}
+
+//----------------------------------------------------------------------
+ZSpaceNode::~ZSpaceNode()
+{
+}
+
+//----------------------------------------------------------------------
+Node *ZSpaceNode::create()
+{
+    return new ZSpaceNode;
+}
+
+//----------------------------------------------------------------------
+NodeType *ZSpaceNode::type() const
+{
+    return &type_;
+}
+
+//----------------------------------------------------------------------
+void ZSpaceNode::initialize()
+{
+    // handle state and namespace updates
+    Node::initialize();
+
+    // ###ADDCODE###
+    // check/open the device/device-system state
+    // create the dynamic slots for the current device configuration
+    // setState (NODE_ERROR) on error
+    std::cerr << "ZSpace: Run initialize" << std::endl;
+
+
+	tracker_ = new vrpn_Tracker_Remote(connectionString_.c_str());
+	button_ = new vrpn_Button_Remote(connectionString_.c_str());
+
+	tracker_->register_change_handler(this, this->handle_tracker);
+	button_->register_change_handler(this, this->handle_button);
+
+    position_ = new OutSlot<Vec3f>("Position of tracker", Vec3f(0.f, 0.f, 0.f));
+    assert(position_ != 0);
+    position_->addListener(*this);
+    addOutSlot("position", position_);
+
+    rotation_ = new OutSlot<Rotation>("Rotation of tracker", Rotation());
+    assert(rotation_ != 0);
+    rotation_->addListener(*this);
+    addOutSlot("rotation", rotation_);
+}
+
+//----------------------------------------------------------------------
+void ZSpaceNode::shutdown()
+{
+    // handle state and namespace updates
+    Node::shutdown();
+
+    // ###ADDCODE###
+    // remove all dynamic slots and do other cleanups
+    // setState (NODE_ERROR) on error
+
+    std::cerr << "ZSpace: Run shutdown" << std::endl;
+	tracker_ = new vrpn_Tracker_Remote(connectionString_.c_str());
+	button_ = new vrpn_Button_Remote(connectionString_.c_str());
+
+	//tracker_->register_change_handler(this, handle_tracker);
+	//button_->register_change_handler(this, handle_button);
+    if (position_ != 0)
+    {
+        removeOutSlot("position", position_);
+        delete position_;
+        position_ = 0;
+    }
+    {
+        removeOutSlot("rotation", rotation_);
+        delete rotation_;
+        rotation_ = 0;
+    }
+}
+
+// Thread method which gets automatically started as soon as a slot is
+// connected
+int ZSpaceNode::processData()
+{
+    // ###ADDCODE###
+    // Open/connect to you device
+    // Send/receive data in the waitThread() loop 
+    // setState (NODE_ERROR) and return -1 on error
+
+    bool deviceOpen = true;
+
+     std::cerr << "ZSpace: Run processData\n" << std::endl;
+
+    if (deviceOpen)
+        setState(NODE_RUNNING);
+    else
+    {
+        setState (NODE_ERROR);
+        return -1;
+    }
+
+    // Important: you need to wall waitThread in every loop
+    // time is in millisecond
+    while (waitThread(10))
+    {
+		tracker_->mainloop();
+		button_->mainloop();
+    }
+
+    // Thread finised
+
+    //###ADDCODE### 
+
+    std::cerr << "ZSpace: finish processData" << std::endl;
+
+    return 0;
+}
+
+
+void VRPN_CALLBACK ZSpaceNode::handle_tracker(void *userdata, const vrpn_TRACKERCB t)
+{
+	Vec3f position;
+    Rotation rot;
+	
+	ZSpaceNode* owner = static_cast<ZSpaceNode*>(userdata);
+
+	if (t.sensor == 0 && owner->getState() == NODE_SLEEPING)
+	{
+
+		owner->setState(NODE_RUNNING);
+		position.set(t.pos[0], t.pos[1], t.pos[2]);
+		rot.set(t.quat[0], t.quat[1], t.quat[2], t.quat[3]);
+
+		owner->position_->push(position);
+
+		owner->setState(NODE_SLEEPING);
+	}
+}
+
+void VRPN_CALLBACK ZSpaceNode::handle_button(void *userdata, const vrpn_BUTTONCB b)
+{
+
+	return;
+}
+
+} // namespace InstantIO

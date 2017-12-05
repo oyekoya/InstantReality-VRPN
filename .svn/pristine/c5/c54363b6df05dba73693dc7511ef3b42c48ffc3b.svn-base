@@ -1,0 +1,314 @@
+# Copyright 2009, Karljohan Lundin Palmerius
+
+"""This file provides extra functionality for the Candy package.
+
+This script draws cylindrical bars showing the frame time for the
+graphics loop and every haptics device used in the scene. The maximum
+and mean frame time for graphics and haptics loops are displayed in
+milliseconds.
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+
+group, = references.getValue()
+
+scene = getCurrentScenes()[0]
+devinfo = getActiveDeviceInfo()
+devices = devinfo.device.getValue()
+
+const = {
+  "BAR_RADIUS": 0.005,
+  "BAR_HEIGHT": 0.007,
+  "SECOND_LENGTH": 10.0,
+  "MAX_DECAY": 0.1,
+  "NEW_VALUE_INFLUENCE": 0.1,
+  "FONT_SIZE": 0.01,
+  "": 0
+  }
+
+gt_grp_str = """
+<Transform translation="%f 0 0">
+ <Transform>
+  <Billboard>
+   <Shape>
+    <Appearance>
+     <Material emissiveColor="1 1 1"/>
+    </Appearance>
+    <Text string="A">
+     <FontStyle DEF="FS" size="%f" justify="MIDDLE"/>
+    </Text>
+   </Shape>
+  </Billboard>
+  <Shape>
+   <Appearance><Material emissiveColor="1 1 1"/></Appearance>
+   <LineSet vertexCount="2">
+    <Coordinate point="0 %f 0, %f %f 0"/>
+   </LineSet>
+  </Shape>
+ </Transform>
+ <Transform>
+  <Billboard>
+   <Shape>
+    <Appearance>
+     <Material emissiveColor="1 1 1"/>
+    </Appearance>
+    <Text string="B">
+     <FontStyle USE="FS"/>
+    </Text>
+   </Shape>
+  </Billboard>
+  <Shape>
+   <Appearance><Material emissiveColor="1 1 1"/></Appearance>
+   <LineSet vertexCount="2">
+    <Coordinate point="0 0 0, %f 0 0"/>
+   </LineSet>
+  </Shape>
+ </Transform>
+</Transform>
+""" % ( -2*const["BAR_HEIGHT"],
+         const["FONT_SIZE"],
+         -0.2 * const["FONT_SIZE"],
+         4*const["BAR_HEIGHT"],
+         -0.2 * const["FONT_SIZE"],
+         3*const["BAR_HEIGHT"] )
+ht_grp_str = """
+<Transform>
+ <Transform>
+  <Billboard>
+   <Shape>
+    <Appearance>
+     <Material emissiveColor="1 1 1"/>
+    </Appearance>
+    <Text string="A">
+     <FontStyle DEF="FS" size="%f" justify="MIDDLE"/>
+    </Text>
+   </Shape>
+  </Billboard>
+  <Shape>
+   <Appearance><Material emissiveColor="1 1 1"/></Appearance>
+   <LineSet vertexCount="2">
+    <Coordinate point="0 0 0, 0 0 0"/>
+   </LineSet>
+  </Shape>
+ </Transform>
+ <Transform>
+  <Billboard>
+   <Shape>
+    <Appearance>
+     <Material emissiveColor="1 1 1"/>
+    </Appearance>
+    <Text string="B">
+     <FontStyle USE="FS"/>
+    </Text>
+   </Shape>
+  </Billboard>
+  <Shape>
+   <Appearance><Material emissiveColor="1 1 1"/></Appearance>
+   <LineSet vertexCount="2">
+    <Coordinate point="0 0 0, 0 0 0"/>
+   </LineSet>
+  </Shape>
+ </Transform>
+</Transform>
+""" % ( const["FONT_SIZE"] )
+g_grp_str = """
+<Transform>
+ <Shape>
+  <Appearance>
+   <Material diffuseColor=".1 .5 .8"/>
+  </Appearance>
+  <Cylinder radius="%f"/>
+ </Shape>
+</Transform>""" % const["BAR_RADIUS"]
+h_grp_str = """<Group/>"""
+h_obj_str = """
+<Transform>
+ <Shape>
+  <Appearance>
+   <Material diffuseColor=".9 .9 .1"/>
+  </Appearance>
+  <Cylinder radius="%f"/>
+ </Shape>
+</Transform>""" % const["BAR_RADIUS"]
+
+g_grp = createX3DNodeFromString(g_grp_str)[0]
+h_grp = createX3DNodeFromString(h_grp_str)[0]
+gt_grp = createX3DNodeFromString(gt_grp_str)[0]
+ht_grp = createX3DNodeFromString(ht_grp_str)[0]
+group.children.push_back(g_grp)
+group.children.push_back(h_grp)
+group.children.push_back(gt_grp)
+group.children.push_back(ht_grp)
+
+startTime = time.getValue()
+
+class Update(SFFloat):
+  
+  def __init__(self):
+    SFFloat.__init__(self)
+    self.g_max = 0
+    self.h_max = 0
+    self.g_mean = self.g_max
+    self.h_mean = self.h_max
+  
+  def update(self,event):
+    
+    currentTime = time.getValue()
+    if currentTime - startTime < 2:
+      if currentTime - startTime < 1:
+        self.g_max = 0
+        self.h_max = 0
+      self.g_mean = self.g_max
+      self.h_mean = self.h_max
+    
+    g_rate = self.getRoutesIn()[0].getValue()
+    if g_rate < 1e-10:
+      return 0.0
+    g_time = 1.0/g_rate
+    
+    h_time = []
+    for device in devices:
+      h_rate = device.hapticsRate.getValue()
+      if h_rate < 1e-10:
+        return 0.0
+      h_time.append(1.0/h_rate)
+
+    r = 1 - const["MAX_DECAY"]*g_time
+    self.g_max *= r
+    self.h_max *= r
+    
+    if g_time > self.g_max:
+      self.g_max = g_time
+    r = const["NEW_VALUE_INFLUENCE"] * g_time
+    self.g_mean = (1-r)*self.g_mean + r*g_time
+    
+    g_value = g_time * const["SECOND_LENGTH"]
+    g_grp.translation.setValue(Vec3f(0,0.5*g_value,0))
+    g_grp.children.getValue()[0].geometry.getValue().height.setValue(g_value)
+    
+    h_ins = h_grp.children.getValue()
+    
+    if len(h_time) > len(h_ins):
+      for idx in xrange(len(h_time)-len(h_ins)):
+        h_obj = createX3DNodeFromString(h_obj_str)[0]
+        h_grp.children.push_back(h_obj)
+      h_ins = h_grp.children.getValue()
+    
+    if len(h_time) < len(h_ins):
+      for idx in xrange(len(h_ins)-len(h_time)):
+        h_ins.pop()
+      h_grp.children.setValue(h_ins)
+    
+    for idx in xrange(len(h_time)):
+      
+      if h_time[idx] > self.h_max:
+        self.h_max = h_time[idx]
+      self.h_mean = (1-r)*self.h_mean + r*h_time[idx]
+      
+      h_value = h_time[idx] * const["SECOND_LENGTH"]
+      h_ins[idx].translation.\
+          setValue(Vec3f( 2 * (1+idx) *
+                          const["BAR_HEIGHT"], 0.5*h_value, 0 ))
+      h_ins[idx].children.\
+          getValue()[0].geometry.\
+          getValue().height.\
+          setValue(h_value)
+    
+    # Set graphics time text
+    gt_grp.children.getValue()[0]\
+        .children.getValue()[0]\
+        .children.getValue()[0]\
+        .geometry.getValue()\
+        .string.setValue(["%.1f"%(1000*self.g_mean)])
+    gt_grp.children.getValue()[1]\
+        .children.getValue()[0]\
+        .children.getValue()[0]\
+        .geometry.getValue()\
+        .string.setValue(["%.1f"%(1000*self.g_max)])
+    
+    # Set graphics time level
+    gt_grp.children.getValue()[0]\
+        .translation.setValue\
+        (Vec3f( -const["BAR_HEIGHT"],
+                 self.g_mean * const["SECOND_LENGTH"]
+                 + 0.2 * const["FONT_SIZE"], 0 ))
+    gt_grp.children.getValue()[1]\
+        .translation.setValue\
+        (Vec3f( 0,
+                self.g_max * const["SECOND_LENGTH"]
+                + 0.2 * const["FONT_SIZE"], 0 ))
+    
+    # Set haptics time position
+    ht_grp.translation.setValue\
+        (Vec3f(2*(1+len(h_time))*const["BAR_HEIGHT"],0,0))
+    
+    # Set haptics time line
+    ht_grp.children.getValue()[0]\
+        .children.getValue()[1]\
+        .geometry.getValue()\
+        .coord.getValue()\
+        .point.setValue\
+        ([Vec3f( -4 * (len(h_time)) *
+                  const["BAR_HEIGHT"],
+                  -0.2 * const["FONT_SIZE"], 0 ),
+          Vec3f(0, -0.2 * const["FONT_SIZE"], 0)])
+    ht_grp.children.getValue()[1]\
+        .children.getValue()[1]\
+        .geometry.getValue()\
+        .coord.getValue()\
+        .point.setValue\
+        ([Vec3f( -3 * (len(h_time)) *
+                  const["BAR_HEIGHT"],
+                  -0.2 * const["FONT_SIZE"], 0 ),
+          Vec3f(0, -0.2 * const["FONT_SIZE"], 0)])
+    
+    # Set haptics time text
+    ht_grp.children.getValue()[0]\
+        .children.getValue()[0]\
+        .children.getValue()[0]\
+        .geometry.getValue()\
+        .string.setValue(["%.1f"%(1000*self.h_mean)])
+    ht_grp.children.getValue()[1]\
+        .children.getValue()[0]\
+        .children.getValue()[0]\
+        .geometry.getValue()\
+        .string.setValue(["%.1f"%(1000*self.h_max)])
+    
+    # Set haptics time level
+    ht_grp.children.getValue()[0]\
+        .translation.setValue\
+        (Vec3f( const["BAR_HEIGHT"],
+                self.h_mean * const["SECOND_LENGTH"]
+                + 0.2 * const["FONT_SIZE"], 0 ))
+    ht_grp.children.getValue()[1]\
+        .translation.setValue\
+        (Vec3f( 0,
+                self.h_max * const["SECOND_LENGTH"]
+                + 0.2 * const["FONT_SIZE"], 0 ))
+    
+    return 0.0
+
+update = Update()
+scene.frameRate.routeNoEvent(update)
+update.routeNoEvent(eventSink)

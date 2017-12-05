@@ -1,0 +1,40 @@
+#ifndef __FOONODEDEF_H
+#define __FOONODEDEF_H
+
+#ifdef _MSC_VER
+# pragma once
+#endif
+
+// ========================================================================= //
+//                                                                           //
+// Filename: FooNodeDef.h                                                    //
+//                                                                           //
+//                                                                           //
+// Author: Fraunhofer Institut fuer Graphische Datenverarbeitung (IGD)       //
+//         Department Virtual and Augmented Reality                          //
+//         Fraunhoferstrasse 5                                               //
+//         64283 Darmstadt, Germany                                          //
+//                                                                           //
+// Rights: Copyright (c) 2009 by Fraunhofer IGD.                             //
+//         All rights reserved.                                              //
+//         Fraunhofer IGD provides this product without warranty of any kind //
+//         and shall not be liable for any damages caused by the use         //
+//         of this product.                                                  //
+//                                                                           //
+// ========================================================================= //
+
+#include <InstantIO/InstantIODef.h>
+
+#define FooNode_EXPORTS
+
+#if defined(_WIN32)
+# ifdef FooNode_EXPORTS
+#  define FOONODE_DLLMAPPING __declspec(dllexport)
+# else
+#  define FOONODE_DLLMAPPING __declspec(dllimport)
+# endif
+#else
+# define FOONODE_DLLMAPPING
+#endif
+
+#endif // __FOONODEDEF_H

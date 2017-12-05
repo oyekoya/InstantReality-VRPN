@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2008, Karljohan Lundin Palmerius
+
+This X3D file generates a widget for picking a colour in
+the HSV colour space. The widget renders a double cone with
+up/down, in/out and around representing the three
+dimensions of the colour space.
+
+This X3D file exports the "PICK_HSV" node which has the
+following fields:
+
+ - color, providing the picked colour. Route from this
+      field to read off the selected colour and route
+      to the field to see a colour's position in the
+      colour space of the widget
+
+ - position, describing the position of the colour in the
+      local space
+
+ - trigger, a boolean field that becomes true when the
+      stylus is moved inside the widget. Use this to
+      deactivate other functions in your program when
+      colour picking is being performed
+
+ - active, a boolean field that becomes true when the the
+      widget is triggered and the main button is pressed,
+      indicating that the colour is being interactively
+      updated
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Group>
+  
+  <Transform
+      translation="0 +.09 0">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".9 .9 .9"/>
+      </Appearance>
+      <Cone DEF="CONE" bottomRadius=".02" height=".02"/>
+    </Shape>
+  </Transform>
+  
+  <Transform
+      rotation="1 0 0 3.141592"
+      translation="0 -.09 0">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".1 .1 .1"/>
+      </Appearance>
+      <Cone USE="CONE"/>
+    </Shape>
+  </Transform>
+  
+  <Shape DEF="BAR">
+    <Appearance>
+      <Material
+          diffuseColor=".75 .8 .9"
+          specularColor="1 1 1"/>
+    </Appearance>
+    <Cylinder radius=".002" height=".19"/>
+  </Shape>
+  
+  <Shape>
+    <Appearance><Material/></Appearance>
+    <IndexedTriangleStripSet
+        solid="false"
+        DEF="ITS">
+      <Coordinate DEF="ITS_COORD"/>
+      <Color DEF="ITS_COLOR"/>
+    </IndexedTriangleStripSet>
+  </Shape>
+  
+  <Group>
+    <PointNormalClipPlane
+        point="+1 0 0"
+        normal="+1 0 0"
+        clipGraphics="true"
+        clipHaptics="true"
+        DEF="REMOVE_CONSTRAINT"/>
+    <Transform
+        translation="0 .05 0">
+      <Shape DEF="CONTRAINT">
+        <Appearance>
+          <Material
+              transparency="0"/>
+          <SmoothSurface/>
+        </Appearance>
+        <Cone solid="false" bottom="false"
+              bottomRadius=".1" height=".1"/>
+      </Shape>
+    </Transform>
+    <Transform
+        rotation="1 0 0 3.14159"
+        translation="0 -.05 0">
+      <Shape USE="CONTRAINT"/>
+    </Transform>
+  </Group>
+  
+  <PythonScript
+      DEF="HSV_SCRIPT"
+      url="pick_HSV.py"/>
+  
+  <ROUTE fromNode="HSV_SCRIPT" fromField="constraint"
+         toNode="REMOVE_CONSTRAINT" toField="clipHaptics"/>
+  
+  <ROUTE fromNode="HSV_SCRIPT" fromField="TorusPoints"
+         toNode="ITS_COORD" toField="point"/>
+  <ROUTE fromNode="HSV_SCRIPT" fromField="TorusIndices"
+         toNode="ITS" toField="index"/>
+  <ROUTE fromNode="HSV_SCRIPT" fromField="TorusColor"
+         toNode="ITS_COLOR" toField="color"/>
+  
+  <TransformInfo DEF="INFO"/>
+  <IMPORT inlineDEF="H3D_EXPORTS" exportedDEF="HDEV" AS="HDEV"/>
+  
+  <ROUTE fromNode="HDEV" fromField="mainButton"
+         toNode="HSV_SCRIPT" toField="move_active" />
+  <ROUTE fromNode="HDEV" fromField="trackerPosition"
+         toNode="HSV_SCRIPT" toField="move_position" />
+  <ROUTE fromNode="INFO" fromField="accInverseMatrix"
+         toNode="HSV_SCRIPT" toField="move_transform" />
+  
+  <Transform
+      DEF="INDICATOR">
+    <Shape>
+      <Appearance>
+        <Material
+            DEF="INDICATOR_MAT"/>
+      </Appearance>
+      <Sphere radius="0.01"/>
+    </Shape>
+  </Transform>
+  
+  <ROUTE fromNode="HSV_SCRIPT" fromField="color"
+         toNode="INDICATOR_MAT" toField="diffuseColor"/>
+  <ROUTE fromNode="HSV_SCRIPT" fromField="position"
+         toNode="INDICATOR" toField="translation"/>
+  
+  <EXPORT localDEF="HSV_SCRIPT" AS="PICK_HSV"/>
+  
+</Group>

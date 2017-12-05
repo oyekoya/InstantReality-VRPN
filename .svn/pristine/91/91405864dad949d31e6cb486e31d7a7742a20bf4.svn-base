@@ -1,0 +1,155 @@
+# Copyright 2005-2010, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This Python-script provides an intuitive navigation scheme where the a
+selected transform is scaled down for navigation and then scaled back
+up for interaction.
+
+The following must be provided through the "references" field:
+*) the MatrixTransform node on which to operate.
+
+The following must be routed:
+1) To the "zoom" field, the button to activate zooming out
+2) To the "position" field, the position to use as zoom centre
+
+You may also control the following variables, either by routing to
+their respective fields or by providing a MetadataFloat with the name
+of the variable:
+*) inScale   - the transform scale when zoomed in, default 1.0
+*) outScale  - the transform scale when zoomed out, default 0.1
+*) zoomTime  - the duration of zooming in or out, default 1.0 sec
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+import math
+
+matrix = SFMatrix4f()
+
+zoom = SFBool()
+position = SFVec3f()
+
+inScale = SFFloat()
+outScale = SFFloat()
+zoomTime = SFFloat()
+
+inScale.setValue(1.0)
+outScale.setValue(0.1)
+zoomTime.setValue(1.0)
+
+class const:
+  NO_ZOOM = 0.0
+  FULL_ZOOM = 1.0
+
+ref_nodes = references.getValue()
+for node in ref_nodes:
+  
+  if hasattr(node,"matrix"):
+    matrix = node.matrix
+    
+  elif hasattr(node,"name") and hasattr(node,"value"):
+  
+    node_name = node.name.getValue()
+  
+    if node_name == "inScale":
+      inScale.setValue(node.value.getValue()[0])
+  
+    elif node_name == "outScale":
+      inScale.setValue(node.value.getValue()[0])
+  
+    elif node_name == "zoomTime":
+      zoomTime.setValue(node.value.getValue()[0])
+  
+    else:
+      print "AutoLoadSO: Unrecognized argument '%s'" % node_name
+      
+  else:
+    print "AutoLoadSO: Unrecognized argument '%s'" % node
+
+
+class TransformZoom(TypedField( SFBool,
+                                ( SFBool,        # Activate (button)
+                                  SFVec3f ))):   # Tracker position
+  def __init__(self):
+    SFBool.__init__(self)
+    self.state = const.NO_ZOOM
+    self.position = Vec3f(0,0,0)
+    self.scale = inScale.getValue()
+    
+  def update(self, event):
+    try:
+      inputs = self.getRoutesIn()
+      do_zoom = inputs[0].getValue()
+      position = inputs[1].getValue()
+    except:
+      return False
+
+    if do_zoom and self.state < const.FULL_ZOOM:
+
+      current_time = time.getValue()
+      
+      if self.state == const.NO_ZOOM:
+        self.last_time = current_time
+        self.state += 1e-5
+        return False
+      
+      dt = current_time - self.last_time
+      self.state = min(self.state + dt/zoomTime.getValue(), const.FULL_ZOOM)
+    
+    elif not do_zoom and self.state > const.NO_ZOOM:
+
+      current_time = time.getValue()
+      
+      if self.state == const.FULL_ZOOM:
+        self.last_time = current_time
+        self.state -= 1e-5
+        return False
+      
+      dt = current_time - self.last_time
+      self.state = max(self.state - dt/zoomTime.getValue(), const.NO_ZOOM)
+      
+    else:
+      return False
+    
+    r = 0.5 - 0.5*math.cos( self.state * math.pi )
+    s = (1-r)*inScale.getValue() + ( r )*outScale.getValue()
+    
+    self.position = position + (self.position - position)*(s/self.scale)
+    
+    M = Matrix4f(s,0,0,self.position.x,
+                 0,s,0,self.position.y,
+                 0,0,s,self.position.z,
+                 0,0,0,1)
+    matrix.setValue(M)
+    
+    self.scale = s
+    self.last_time = current_time
+    return True
+
+transformZoom = TransformZoom()
+zoom.routeNoEvent(transformZoom)
+position.routeNoEvent(transformZoom)
+transformZoom.routeNoEvent(eventSink)
+

@@ -1,0 +1,89 @@
+#X3D V3.0 utf8
+
+Engine {
+jobs [
+  RenderJob { 
+    windowGroups [
+      WindowGroup {
+        windows [
+          LocalWindow {
+          buffer 4
+          size 1920 1080
+            views [
+              Viewarea {
+                leftBuffer TRUE
+                rightBuffer FALSE
+				modifier [
+					DEF modifier_zspace_left ProjectionViewModifier {
+						surface [
+							-1.2192 -0.9144 -1.2192,
+							 1.2192 -0.9144 -1.2192,
+							 1.2192  0.9144 -1.2192,
+							-1.2192  0.9144 -1.2192 ]
+                    leftEye  TRUE
+                    rightEye FALSE
+					eyeSeparation 0.065   
+					#zeroParallaxDistance 1
+                  }
+                ]
+              }
+              Viewarea {
+                leftBuffer FALSE
+                rightBuffer TRUE
+				modifier [
+					DEF modifier_zspace_right ProjectionViewModifier {
+						surface [
+							-1.2192 -0.9144 -1.2192,
+							 1.2192 -0.9144 -1.2192,
+							 1.2192  0.9144 -1.2192,
+							-1.2192  0.9144 -1.2192 ]
+                    leftEye  FALSE
+                    rightEye TRUE
+					eyeSeparation 0.065   
+					#zeroParallaxDistance 1
+                  }	
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }	
+DEF io IOSensor {
+  type "ZSpaceNode"
+  field SFString randMax "3"
+  eventOut SFVec3f headposition
+  eventOut SFRotation headrotation
+}
+DEF navmap Script {
+	field SFNode io USE io
+	eventIn SFVec3f headpos
+	eventIn SFRotation headrot
+	eventOut SFMatrix4f headmatrix
+
+	url "javascript:
+
+	//--------------------
+	function headpos(value) 
+	{
+		headmatrix.setTransform(io.headposition, io.headrotation);
+	}
+	function headrot(value) 
+	{
+		headmatrix.setTransform(io.headposition, io.headrotation);
+	}
+
+	"
+}
+
+]
+
+ROUTE io.headposition TO navmap.headpos
+ROUTE io.headrotation TO navmap.headrot
+
+ROUTE navmap.headmatrix TO modifier_zspace_left.set_eyeTransform
+ROUTE navmap.headmatrix TO modifier_zspace_right.set_eyeTransform
+}
+
+

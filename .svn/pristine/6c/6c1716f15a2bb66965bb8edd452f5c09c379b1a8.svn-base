@@ -1,0 +1,645 @@
+
+1. Introduction
+2. Installation
+3. Candy Nodes
+4. Candy Scripts and Models
+5. HVR Nodes
+ 5.1 Viewpoints
+ 5.2 Trackers
+ 5.3 Miscellaneous
+6. Components Information
+
+1. Introduction
+
+This is the Candy package, a collection of tools and nodes for H3D
+API. While the nodes provided through this package require
+compilation, there are several components that can be used
+directly.
+
+The Candy package includes the HVR package. The acronym can stand for
+"H3D Virtual Reality" or "Haptic Virtual Reality" and this is a
+package including a few nodes required to set up a Virtual Reality
+environment (VR) with H3D API. It supports a range of tracking
+standards and viewpoints suitable for different types of VR systems.
+
+
+2. Installation
+
+If you only want to use the scripts and models you may jump directly
+to step 4.
+
+ 1) Create you own build folder, e.g. build.win and run CMake from
+ this folder using the build folder as source. Alternatively you may
+ run CMake from the build folder directly.
+
+ 2) Use CMake to set up your selected requirements and create a build
+ settings for your platform.
+ 
+ 3) Build and install Candy using your standard tools and the build
+ settings created by CMake. The shared libraries will be installed in
+ the Candy folder. This is in order since they are typically
+ dynamically loaded from X3D models.
+
+ 4) Merge the index.urn file with your index.urn file in the H3DAPI
+ system and set the full path to your Candy folder.
+
+
+3. Candy Nodes
+
+ - CubicPositionInterpolator, an interpolator node that interpolates
+   softly between the specified intermediate key positions
+
+ - FiniteStateMachine, a node encapsulating the functionality of a
+   state machine, or automata, useful for handling states in a game or
+   larger application
+
+ - ForceTorqueIcon, a small widget that provides real-time visual
+   representations of the force and torque generated for the first
+   haptic instrument
+
+ - I18N, internationalization, is a node that provides strings
+   specified through separate language files
+
+ - MouseHapticsDevice, a haptics device implementation that use the
+   mouse position in 3D to determine the motions
+
+ - PathHapticsDevice, a haptics device implementation that is
+   controlled through a pre-defined cubic spline path
+   
+ - XSplinePositionInterpolator, a position interpolator that uses the
+   x-spline algorithm which allows for a mixture of hard and soft
+   corners
+
+For more information, see the documentation of the separate parts.
+
+
+4. Candy Scripts and Models
+
+These components are made from Python scripts and X3D models and can
+therefore be used without compiling or installing the package. See the
+documentation of the separate parts for more information and
+prerequisites.
+
+ - Calib, a semi-automatic and interactive calibration tool for the H3D
+   system,
+
+ - Shell, an interactive Python shell for run-time manipulation of
+   the H3D scene-graph,
+ 
+ - CorrectViewpoint, a script can be used when you have a correct
+   viewpoint to correct all necessary settings,
+
+ - Rotator, a Python script that provides rotation from arrows, mouse
+   motions and the magellan device,
+
+ - Bubble, a Python script implementing the 'Bubble' technique for
+   extending the reach of the haptics device,
+   
+ - ZoomToNavigate, a Python script that implements scaling as a means
+   for navigation,
+   
+ - MotionNavigation, a Python script that allows for simple navigation
+   by transforming the world instead of moving the viewpoint,
+   
+ - MultiTouch, a Python script implementing multi touch interaction
+   using two or more haptics devices,
+   
+ - ManualTranslation, a Python script that enables intuitive
+   translation of a transform using a haptic device
+        
+ - ManualRotation, a Python script that enables intuitive rotation of
+   a transform using a haptic device
+        
+ - ManualZoom, a Python script that enables intuitive zoom using a
+   haptic device
+   
+ - pick_RGB, a widget for interactive selection of colour in the RGB
+   colour space,
+   
+ - pick_HSV, a widget for interactive selection of colour in the HSV
+   colour space,
+
+ - AutoLoadSO, a Python script that automatically loads the correct
+   shared object (dll/so/dylib) for a cross platform X3D files,
+
+ - GettextWrapper, a Python script that uses GNU Gettext to translate
+   X3D or VRML files while loading them into the scene
+   
+ - FrameTime, a Python script that draws bars to visualize the frame
+   time for the graphics loop and for all haptics devices
+
+ - RemoveCursor, a Python script removes the cursor when it is over
+   any H3D window, or changes its shape
+
+
+5. HVR Nodes
+
+The Candy package includes the HVR package. The acronym can stand for
+"H3D Virtual Reality" or "Haptic Virtual Reality" and this is a
+package including a few nodes required to set up a Virtual Reality
+environment (VR) with H3D API. It supports a range of tracking
+standards and viewpoints suitable for different types of VR systems.
+
+
+5.1 Viewpoints
+
+ - HMDViewpoint, a viewpoint useful for Head Mounted Displays (HMDs)
+
+ - SMViewpoint, a Spatial Monitor viewpoint. This is used if you have
+   a statinary monitor and head tracking.
+
+
+5.2 Trackers
+
+ - MarkerTracker, a ARToolkit marker, tracked in 6 DoF.
+
+ - GadgetTracker, a tracker node using the Gadgeteer to collect
+   tracker information.
+
+ - InterSenseTracker, a tracker node reading data from an InterSense
+   tracker. This is using the InterSense SDK (isense.h)
+
+ - VRPNTracker, a tracker node working as a VRPN client to read data
+   from a VRPN server. Through VRPN this node can read data from a
+   wide range of tracker systems.
+
+ - KinectHighPointTracker, a simple hack that reads Kinect depth data
+   and looks for the highest point closer to the camera than a
+   specified distance. This gives 3 DoF tracking.
+
+
+5.3 Miscellaneous
+
+ - ARToolkit, a singleton node for ARToolkit. Exactly one is required
+   when any ARToolkit functionality is used.
+
+ - Gadgeteer, a singleton node for Gadgeteer. Exactly one is required
+   when Gadgeteer tracking is used.
+   
+ - ARBackground, a background node that displays the ARToolkit
+   image. This is useful for see-through Augmented Reality.
+
+
+6. Components Information
+
+*********************************************************************
+              Calib - Tool for calibrating H3D API
+*********************************************************************
+
+This is an interactive tool for calibrating the haptic instruments
+used with H3D API. It provides a clean and easy way of finding both
+the position calibration matrix and the rotation calibration of any
+type of haptic device supported by H3D API. With correct display
+settings and calibration data generated from this tool, the VR
+environment will become one-to-one mapped with the real world, so that
+a one cm object will look one cm, and the haptic instrument will
+become co-located and co-registered. With a semi-transparent display
+you will see the virtual stylus superposed the real haptic probe
+taking full advantage of human eye/hand coordination.
+
+
+- Prerequisites -
+
+For the tool to successfully work you will need non-standard Python
+packages used for optimizing the transformation matrix. Make sure that
+you have installed SciPy and either NumPy or Numeric for your current
+version of Python. The tool has been confirmed to work on Linux with
+Python 2.4, SciPy 0.3.2 and Numeric 24.2, and on Windows with Python
+2.4, SciPy 0.4.9 and NumPy 0.9.8
+
+It is also assumed that you have a working copy of H3D API.
+
+
+- Tool keys -
+
+The following keys can be used during calibration:
+
+ c - Perform calibration
+ z - Undo last sample
+ Z - Undo all samples
+ p - Print calibration
+
+
+- Using the tool -
+
+First make sure you use the correct Viewpoint for your system. H3DLoad
+in H3D API v 1.4 and later provides display specific settings, however
+you may want to make sure that the values fit your display. The
+calibration wizard included in Calib can help you with that.
+
+If you want to manually adjust the view then measure the screen height
+(h) and the distance (d) between the screen and the viewer's eyes
+(through the mirror if your system has one). The active viewpoint of
+the scene graph should then have the following properties:
+
+ position = [ 0, 0, d ]
+ fieldOfView = 2 x arctan( (h/2)/d )
+
+The fieldOfView is expressed in radians (should be around 0.5). If
+stereo is supported, there should also be a StereoInfo node with the
+following properties:
+
+ focalDistance = d
+ interocularDistance = 0.06
+
+
+The calibration tool is started from the Candy root by with the
+command-line 'H3DLoad x3d/Calib.x3d'. This will show an empty grey
+screen. To use the tool, follow these steps:
+
+ 1) Make sure the light is on in your room, so that you see the real
+ haptic instrument through the mirror.
+
+ 2) Move the stylus (a blue sphere) to a position and orientation to
+ which you believe that you can move the real instrument. The long and
+ short spikes represents the length of the pen and its up orientation,
+ respectively.
+
+ 3) Hold down the main button. This will create a red version of the
+ stylus.
+
+ 4) Now, while holding down the button, move the real instrument, seen
+ through the mirror, inside the red stylus and orientate the
+ instrument to match it, and release the button. Observe that it is the
+ pivot point of your device that should be co-centred with the sphere
+ and not its tip.
+
+ 5) You now have a calibration sample, represented by a green and a red
+ sphere. Repeat steps 2-4 until you have a set of samples that you
+ believe fully represents the transform of the tool. It is important
+ that the different positions and orientations of the samples
+ adequately represent the workspace of the device, also distributed in
+ depth.
+
+ 6) When you have enough samples, press the 'c' key. This will freeze
+ the scene for a few seconds or minutes depending on the number of
+ samples and the speed of your computer.
+
+ 7) Check if you think that the new calibration matrix is
+ satisfactory by moving the instrument about. Otherwise, restart from
+ step 1. It is not uncommon that the calibration procedure needs to be
+ performed two times - one time for coarse calibration and one time for
+ fine tuning.
+
+ 8) When finished press the 'p' key. The new instrument calibration
+ settings are then printed to your command window. Use these in the
+ X3D setup of your haptic device.
+
+
+*********************************************************************
+   Shell - A Python shell for run-time scene graph modifications
+*********************************************************************
+
+Shell is a script that sets up a Tcl/Tk or wxPython outside the H3D
+API 3D rendering of the scene graph. Into this window can be entered
+Python code to modify the run-time scene graph by adding or removing
+nodes or updating and reading values of fields. The window is split in
+two halves providing one half for input, the Python scripts, and one
+half for output from the execution, both error messages and results
+from printing commands.
+
+The shell comes in two versions, one for Tcl/Tk and one for
+wxPython. While the wxPython version is better looking and has a bit
+more functionality, the Tcl/Tk version runs with out-of-the-box Python
+installations. Read on for more information.
+
+
+- Prerequisites -
+
+There should not be any prerequisites, apart from a working copy of
+H3D API. Tcl/Tk, used per default for widget rendering, should be
+included in all distributions of Python. wxPython, however, provides
+native look and feel on all supported platforms. Use this if you have
+wxPython installed on your system.
+
+
+- Usage -
+
+See the example 'x3d/setup_shell.x3d'. The first reference provided
+for the script can be accessed through the name 'node'. All references
+are provided through the name 'nodes'. Observe that this is a list of
+all references, so 'node' and 'nodes[0]' provide the same scene graph
+node.
+
+The input box in the wxPython version of the shell allows for a few
+short-cut commands. Pressing Ctrl+Return executes the entered code,
+Ctrl+Up steps back through a history of previously executed commands,
+and Ctrl+Down steps forward in the same history.
+
+Running the example using H3DLoad, try executing the following code
+through the shell:
+
+ app = node.children.getValue()[0].appearance.getValue()
+ app.material.getValue().diffuseColor.setValue( RGB(0.1,0.1,0.1) )
+ app.material.getValue().specularColor.setValue( RGB(0.9,0.1,0.1) )
+ nodes[1].cycleInterval.setValue(5)
+
+
+*********************************************************************
+   CorrectViewpoint - A Python script that corrects view settings
+*********************************************************************
+
+This script can be used when you have a correct viewpoint to correct
+all settings that modifies tracking and viewpoint according to
+navigation. It sets the type in the navigation info to false and sets
+all devices to not follow the viewpoint.
+
+
+*********************************************************************
+         Rotator - A Python script for handling rotation
+*********************************************************************
+
+This Python-script accumulates rotation information extracted from the
+sensors provided through the references field. This can be KeySensor,
+MouseSensor or any Sensor with an instantRotation field, such as
+SpaceWareSensor. The script can then be used to control 3D scene
+orientation. Load the "python/Rotator.py" with a PythonScript node and
+route the "rotation" field to the "rotation" field of the selected
+transform. The orientation provided by this script can be reset to
+zero by setting the reset field to true.
+
+This script uses KeySensor, MouseSensor and SpaceWareSensor if no
+sensor is explicitly provided through the references field.
+
+
+*********************************************************************
+         Bubble - 'Bubble' technique for extending the reach
+*********************************************************************
+
+This Python-script implements the 'Bubble' technique for extending the
+reach of a small workspace haptics device into a larger
+environment. In this approach a sphere is defined around the centre of
+the device's workspace. When interacting inside of this sphere the
+normal mode of interaction is executed. If the probe is moved outside
+the sphere, however, the sphere is pushed and thereby translated to a
+new position in space.
+
+
+*********************************************************************
+         ZoomToNavigate - scaling as a means for navigation
+*********************************************************************
+
+This Python-script scales a selected transform upon activation and
+scales it back when deactivated. This can be used as a means for
+navigation in large worlds in this way: 1) zoom out to navigate, 2)
+move the haptic instrument to a new position, and 3) zoom back in to
+interact at the new location.
+
+
+*********************************************************************
+          MotionNavigation - navigating through a transform
+*********************************************************************
+
+This Python-script helps controlling a transform in a way simulating
+motion of the viewer. In many games and applications the viewpoint can
+be used to navigate the 3D world. In some VR systems, however, the VR
+world intersects with the real world and should stay co-located and
+co-registered throughout the simulation. The viewpoint is used to
+navigate relative the real screen in the real world. Instead, here the
+navigation is performed by transforming the world to navigate in.
+
+
+*********************************************************************
+               MultiTouch - Multi touch interaction
+*********************************************************************
+
+This Python script provides an intuitive navigation scheme where at
+least two haptic instruments are used to translate, rotate and scale a
+selected transform. All haptic instruments available in the currently
+active DeviceInfo node are applied. The main button of the devices is
+used to grasp the specified transform.
+
+
+*********************************************************************
+      Manual* - A Set of Python scripts for handling transforms
+*********************************************************************
+
+These Python-scripts, ManualTranslation, ManualRotation and
+ManualZoom, provides an intuitive navigation scheme where the haptic
+instrument is used to translate, rotate and zoom (respectively) on
+objects in a selected transform. They can be used individually or
+combined. Since both zoom and rotation are performed using the
+rotation of a haptics device it is not recommended to use them both
+simultaneously.
+
+
+
+*********************************************************************
+      pick_RGB - A widget for interactive colour selection
+*********************************************************************
+
+The pick_RGB widget can be included by doing an Inline on the file
+"x3d/pick_RGB.x3d". The X3D file renders the widget, provides
+interactive colour selection and exports the node "PICK_RGB" which
+contains the following fields:
+
+ - color, providing the picked colour. Route from this
+      field to read off the selected colour and route
+      to the field to see a colour's position in the
+      colour space of the widget
+
+ - position, describing the position of the colour in the
+      local space
+
+ - trigger, a boolean field that becomes true when the
+      stylus is moved inside the widget. Use this to
+      deactivate other functions in your program when
+      colour picking is being performed
+
+ - active, a boolean field that becomes true when the the
+      widget is triggered and the main button is pressed,
+      indicating that the colour is being interactively
+      updated
+
+An example of how this component can be used is given in the file
+"x3d/example_colourPickers.x3d". Both colour pickers are present and
+interconnected so that their respective colour space's positions can
+be interactively visualized and explored.
+
+
+*********************************************************************
+      pick_HSV - A widget for interactive colour selection
+*********************************************************************
+
+The pick_HSV widget can be included by doing an Inline on the file
+"x3d/pick_HSV.x3d". The X3D file renders the widget, provides
+interactive colour selection and exports the node "PICK_HSV" which
+contains the following fields:
+
+ - color, providing the picked colour. Route from this
+      field to read off the selected colour and route
+      to the field to see a colour's position in the
+      colour space of the widget
+
+ - position, describing the position of the colour in the
+      local space
+
+ - trigger, a boolean field that becomes true when the
+      stylus is moved inside the widget. Use this to
+      deactivate other functions in your program when
+      colour picking is being performed
+
+ - active, a boolean field that becomes true when the the
+      widget is triggered and the main button is pressed,
+      indicating that the colour is being interactively
+      updated
+
+An example of how this component can be used is given in the file
+"x3d/example_colourPickers.x3d". Both colour pickers are present and
+interconnected so that their respective colour space's positions can
+be interactively visualized and explored.
+
+
+*********************************************************************
+           AutoLoadSO - Automatic Loader of Shared Object
+*********************************************************************
+
+This script automatically loads the correct shared object library file
+for the current platform. For the Linux and MacOS platform the library
+loaded is 'lib*.so' or 'lib*.dylib', respectively. For Windows
+platforms the 'bin' folder is searched for the first occurance of a
+dll with the correct prefix. The script will attempt to automatically
+select debug or no-debug library but the result can be manually
+overridden by an argument in the X3D file.
+
+
+*********************************************************************
+          GettextWrapper - Load Gettext Translated X3D Files         
+*********************************************************************
+
+This script provides functionality for loading X3D or VRML files with
+GNU gettext translations for internationalization. All X3D and VRML
+loading functions from H3D are overloaded. Any instance of _(...) is
+replaced with the translation of the argument or the argument itself
+if there is no translation available. You may use _(...) around the
+string to be translated, or inside the string if you want strict XML.
+
+You can either load this script into an X3D file to make it load
+another X3D file, or as a module in another Python script.
+
+
+*********************************************************************
+      FrameTime - Graphics and Haptics Frame Time Visualization
+*********************************************************************
+
+This script draws cylindrical bars showing the frame time for the
+graphics loop and every haptics device used in the scene. The maximum
+and mean frame time for graphics and haptics loops are displayed in
+milliseconds.
+
+
+*********************************************************************
+            RemoveCursor - Changes the Mouse Cursor Shape
+*********************************************************************
+
+This script sets the cursor type for all H3D windows to "NONE" so that
+the mouse cursor is removed when it is over any H3D window. This
+default behaviour can be overriden to set its shape to any other type.
+
+
+*********************************************************************
+  CubicPositionInterpolator - An interpolator using cubic function
+*********************************************************************
+
+This node provides a position interpolation functionality with cubic
+interpolation, to produce a smooth path. It is useful for producing
+paths for flying objects, for example in transitions between using and
+not using a graphical user interface or presenting a splash screen.
+
+
+*********************************************************************
+      FiniteStateMachine - An automata, or finite state machine
+*********************************************************************
+
+The FiniteStateMachine node provides state machine functionality
+through programmable states and transitions.
+
+A state machine takes care of states in anything from compiler
+programs, file readers and client/server systems to games and
+applications. A state can be, for example, 'showing menu', 'running
+game' or 'game over'. By using a central state machine each
+functionality of the game or application can be individually
+programmed in separate scripts or systems and by simply reading of the
+state value, or even receive events from the state machine, each
+script can know what to do, if is should be inactive or start doing
+something.
+
+This node reads a specified XML file with state and transition
+specifications. Events can be associated with transitions, or with
+entering or exiting states, providing events and values through
+routing.
+
+Details on the XML syntax are given in the HTML documentation.
+
+
+*********************************************************************
+     ForceTorqueIcon - Visual representation of haptic feedback
+*********************************************************************
+
+This node provides a visual representation of the force and torque
+generated through the first haptic instrument. There are two X3D files
+provided for including this information in a general setup file:
+
+ x3d/model_FeedbackIcon.x3d - include this file to show the visual
+ feedback at a position specified by the current transform
+ 
+ x3d/model_FeedbackTip.x3d - include this file to show the visual
+ feedback at the tip of the first haptic instrument
+
+*********************************************************************
+              I18N - Provides language specific strings
+*********************************************************************
+
+The string to be used in a game or application can be specified in a
+language file. This file is read by the I18N node from which each
+string is routed from a field to the label, button or other widget
+that requires a string.
+
+
+*********************************************************************
+     MouseHapticsDevice - Mouse controlled haptics device
+*********************************************************************
+
+This haptics device transforms the mouse position into its
+corresponding 3D position and uses that position for the haptics
+device. The device position is interpolated in the haptics thread for
+smooth simulation of haptic algorithms even without a real haptic
+device.
+
+The right mouse button is used as the main button of the haptics
+device. While holding down the middle button, up and down movements of
+the mouse will move the haptics device away and closer in the Z
+direction. The left mouse button remains left mouse button, since this
+is often used for other interface interaction.
+
+
+*********************************************************************
+     PathHapticsDevice - Pre-defined path for haptics device
+*********************************************************************
+
+This haptics device is controlled through a pre-defined cubic spline
+path which the device follows at a specified time. It is designed
+primarily for testing haptic algorithms and parameters in a comparable
+manner. Because of the required precision in such tests, this device
+estimates the probe position and velocity in the haptics loop, in
+contrast to the fake haptics device(s) available in H3D API. There are
+two example device setup files available in this package:
+
+ x3d/device_CircularPath.x3d - use this device setup file to make the
+ haptic device go slowly around and around
+ 
+ x3d/device_LeftToRightPath.x3d - this device setup file makes the
+ device go from left to right starting after ten seconds to allow for
+ any time consuming initialization to finish
+
+
+*********************************************************************
+    XSplinePositionInterpolator - X-Spline position interpolation
+*********************************************************************
+
+This is a position interpolator that is using the x-spline to define
+the path. X-Spline is an alternative to traditional splines and was
+introduced by Carole Blanc and Christophe Schlick in 1995. It is
+capable of defining a mixture of corners that are of various softness
+so that both a smooth bend and hard corners can be defined in the same
+path.

@@ -1,0 +1,118 @@
+# Copyright 2005-2006, Karljohan Lundin
+#
+
+"""This file provides scripts for the Shell tool of Candy.
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+import math, sys, StringIO
+
+from Tkinter import *
+
+from H3D import *
+from H3DInterface import *
+
+node = references.getValue()[0]
+nodes = references.getValue()
+
+
+class Shell(Frame):
+  
+  def __init__(self,parent,node):
+    Frame.__init__(self,parent)
+    self.node = node
+
+    self.scrollbar = Scrollbar(self)
+    self.scrollbar.grid( row=0, column=1, sticky=N+E+W+S )
+    
+    self.output = Text( self, width=40, height=5,
+                        state = DISABLED,
+                        yscrollcommand = self.scrollbar.set )
+    self.output.grid(row=0,column=0,sticky=N+E+W+S)
+
+    self.output.tag_config("err", foreground="red")
+    self.output.tag_config("out", foreground="#009900")
+    self.output.tag_config("in",  foreground="gray50")
+    
+    self.scrollbar.config( command = self.output.yview )
+    
+    self.input = Text(self,width=40,height=5)
+    self.input.grid( row=1, column=0, sticky=N+E+W+S,
+                     columnspan=2)
+    
+    self.execute = Button(self,text="Execute",command=self.execute)
+    self.execute.grid(row=2,column=0,sticky=N+E)
+    
+    self.rowconfigure(0,weight=1)
+    self.columnconfigure(0,weight=1)
+    
+  def execute(self):
+    
+    self.output.config(state=NORMAL)
+    self.output.insert( END, self.input.get( 1.0, END ), "in" )
+    
+    codeOut = StringIO.StringIO()
+    codeErr = StringIO.StringIO()
+    sys.stdout = codeOut
+    sys.stderr = codeErr
+    
+    try:
+      exec(self.input.get( 1.0, END ))
+    except Exception, detail:
+      sys.stderr.write("Could not execute command\n%s\n" % detail )
+    
+    sys.stdout = sys.__stdout__
+    sys.stderr = sys.__stderr__
+
+    s = codeErr.getvalue()
+    if not s is None:
+      self.output.insert(END,s,"err")
+    s = codeOut.getvalue()
+    if not s is None:
+      self.output.insert(END,s,"out")
+    self.output.insert(END,"Done.\n\n")
+    
+    self.output.config(state=DISABLED)
+    self.output.see(END)
+    
+    codeOut.close()
+    codeErr.close()
+
+
+# H3D Runtime ---
+
+root = Tk(None, "./")
+root.title("Scene-graph Shell")
+
+shell = Shell(root,node)
+shell.grid(sticky=N+E+W+S)
+root.rowconfigure(0,weight=1)
+root.columnconfigure(0,weight=1)
+
+class Ctrl( AutoUpdate( SFTime ) ):
+  def update(self, event):
+    try:
+      root.update()
+    except:
+      pass
+    return 0
+
+ctrl = Ctrl()
+time.route(ctrl)

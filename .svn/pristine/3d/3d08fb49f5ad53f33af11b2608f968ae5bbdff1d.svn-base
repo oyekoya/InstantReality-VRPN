@@ -1,0 +1,238 @@
+/**
+   Copyright 2003-2005, Karljohan Lundin
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#include <Candy/ForceTorqueIcon.hh>
+
+#include <H3D/Coordinate.h>
+#include <H3D/Scene.h>
+
+#include <cmath>
+
+using namespace H3D;
+using namespace Candy;
+
+
+H3DNodeDatabase ForceTorqueIcon::database
+( "ForceTorqueIcon",
+  &(newInstance<ForceTorqueIcon>),
+  typeid( ForceTorqueIcon ),
+  &IndexedLineSet::database );
+
+namespace ForceTorqueIconInternals {
+  FIELDDB_ELEMENT( ForceTorqueIcon, force, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ForceTorqueIcon, torque, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ForceTorqueIcon, forceScale, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ForceTorqueIcon, torqueScale, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ForceTorqueIcon, torqueRadius, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ForceTorqueIcon, arrowHeadSize, INPUT_OUTPUT );
+}
+
+ForceTorqueIcon::ForceTorqueIcon()
+  : force        ( new SFVec3f ),
+    torque       ( new SFVec3f ),
+    
+    forceScale   ( new SFFloat ),
+    torqueScale  ( new SFFloat ),
+    
+    torqueRadius ( new SFFloat ),
+
+    arrowHeadSize( new SFFloat ),
+
+    update       ( new Update ) {
+  
+  type_name = "ForceTorqueIcon";
+  database.initFields( this );
+  update->setOwner( this );
+  
+  force->setValue        ( Vec3f(0,0,0), id );
+  torque->setValue       ( Vec3f(0,0,0), id );
+  forceScale->setValue   ( 0.1f, id );
+  torqueScale->setValue  ( 1.0f, id );
+  torqueRadius->setValue ( 0.02f, id );
+  arrowHeadSize->setValue( 0.005f, id );
+  
+  force        ->routeNoEvent( update );
+  torque       ->routeNoEvent( update );
+  forceScale   ->routeNoEvent( update );
+  torqueScale  ->routeNoEvent( update );
+  torqueRadius ->routeNoEvent( update );
+  arrowHeadSize->routeNoEvent( update );
+  update->route( Scene::eventSink );
+}
+
+void ForceTorqueIcon::createLines(){
+  
+  std::vector< int > no_indices( 0 );
+  this->coordIndex->swap(no_indices);
+  
+  Coordinate *coord_node =
+    dynamic_cast<Coordinate*>(this->coord->getValue());
+  
+  if( !coord_node ){
+    coord_node = new Coordinate;
+    this->coord->setValue(coord_node);
+  }
+  
+  std::vector< Vec3f > point;
+  std::vector< int > index;
+  
+  Vec3f force = this->force->getValue();
+  Vec3f torque = this->torque->getValue();
+  H3DFloat forceScale = this->forceScale->getValue();
+  H3DFloat torqueScale = this->torqueScale->getValue();
+  H3DFloat torqueRadius = this->torqueRadius->getValue();
+  H3DFloat arrowHeadSize = this->arrowHeadSize->getValue();
+  
+  int idx = 0;
+  
+  H3DFloat force_length = force.length();
+  if( force_length * forceScale
+      > std::numeric_limits<H3DFloat>::epsilon() ){
+    
+    point.push_back( Vec3f(0,0,0) );
+    index.push_back( idx++ );
+    
+    point.push_back( forceScale * force );
+    index.push_back( idx++ );
+    
+    if( arrowHeadSize
+        > std::numeric_limits<H3DFloat>::epsilon() ){
+      
+      Vec3f v1 = force / force_length;
+      
+      Vec3f v2 = Vec3f(1,0,0) - v1 * ( v1 * Vec3f(1,0,0) );
+      H3DFloat v2_length = v2.length();
+      if( v2_length
+          < std::numeric_limits<H3DFloat>::epsilon() ){
+        v2 = Vec3f(0,1,0) - v1 * ( v1 * Vec3f(0,1,0) );
+        v2_length = v2.length();
+      }
+      assert( v2_length
+              > std::numeric_limits<H3DFloat>::epsilon() );
+      v2 /= v2_length;
+      
+      point.push_back( forceScale * force
+                       - arrowHeadSize * v1
+                       + ( .75f * arrowHeadSize ) * v2 );
+      index.push_back( idx++ );
+      
+      index.push_back( -1 );
+      
+      point.push_back( forceScale * force );
+      index.push_back( idx++ );
+      
+      point.push_back( forceScale * force
+                       - arrowHeadSize * v1
+                       - ( .75f * arrowHeadSize ) * v2 );
+      index.push_back( idx++ );
+    }
+    
+    index.push_back( -1 );
+  }
+  
+  H3DFloat torque_length = torque.length();
+  if( torque_length * torqueScale
+      > std::numeric_limits<H3DFloat>::epsilon() &&
+      torqueRadius
+      > std::numeric_limits<H3DFloat>::epsilon() ){
+    
+    Vec3f N_torque = torque / torque_length;
+    Vec3f v1 = Vec3f(1,0,0) - N_torque * ( N_torque * Vec3f(1,0,0) );
+    H3DFloat v1_length = v1.length();
+    if( v1_length
+        < std::numeric_limits<H3DFloat>::epsilon() ){
+      v1 = Vec3f(0,1,0) - N_torque * ( N_torque * Vec3f(0,1,0) );
+      v1_length = v1.length();
+    }
+    if( v1_length
+        > std::numeric_limits<H3DFloat>::epsilon() ){
+      
+      v1 /= v1_length;
+      
+      Vec3f v2 = N_torque % v1;
+      H3DFloat v2_length = v2.length();
+      if( v2_length
+          > std::numeric_limits<H3DFloat>::epsilon() ){
+        v2 /= v2_length;
+        
+        v1 *= torqueRadius;
+        v2 *= torqueRadius;
+        
+        point.push_back( v1 );
+        index.push_back( idx++ );
+        
+        Vec3f a, b;
+        
+        for( int i = 1 ; i < 20 ; i++ ){
+          
+          a = b;
+          b = 
+            std::cos( torque_length * torqueScale * i/20.0 ) * v1 +
+            std::sin( torque_length * torqueScale * i/20.0 ) * v2;
+          
+          point.push_back( b );
+          index.push_back( idx++ );
+        }
+        
+        if( arrowHeadSize
+            > std::numeric_limits<H3DFloat>::epsilon() ){
+          Vec3f v4 = b / torqueRadius;
+          Vec3f v3 = b - a;
+          H3DFloat v3_length = v3.length();
+          if( v3_length
+              > std::numeric_limits<H3DFloat>::epsilon() ){
+            v3 /= v3_length;
+            
+            point.push_back( b
+                             - arrowHeadSize * v3
+                             + ( .75f * arrowHeadSize ) * v4 );
+            index.push_back( idx++ );
+            
+            index.push_back( -1 );
+            
+            point.push_back( b );
+            index.push_back( idx++ );
+            
+            point.push_back( b
+                             - arrowHeadSize * v3
+                             - ( .75f * arrowHeadSize ) * v4 );
+            index.push_back( idx++ );
+            
+            index.push_back( -1 );
+            
+            v2 = v1 / torqueRadius;
+            point.push_back( v1
+                             - ( .75f * arrowHeadSize ) * v2 );
+            index.push_back( idx++ );
+            
+            point.push_back( v1
+                             + ( .75f * arrowHeadSize ) * v2 );
+            index.push_back( idx++ );
+          }}
+        
+        index.push_back( -1 );
+      }}}
+  
+  coord_node->point->swap(point);
+  this->coordIndex->swap(index);
+  
+}

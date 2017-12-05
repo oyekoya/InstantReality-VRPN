@@ -1,0 +1,664 @@
+# coding=utf-8
+# Copyright 2005-2009, Karljohan Lundin Palmerius
+#
+
+"""This file provides scripts for the Calib tool of Candy.
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+CALIB_VIEWPOINT = True
+
+
+# BEGIN Hack for gettext on Windows
+import os, locale
+if os.name == 'nt':
+  lang = os.getenv('LANG')
+  if lang is None:
+    default_lang, default_enc = locale.getdefaultlocale()
+    if default_lang:
+      lang = default_lang
+  if lang:
+    os.environ['LANG'] = lang
+# END Hack for gettext on Windows
+
+import gettext
+gettext.install('Calib', './resources/', False, 'utf-8')
+
+
+working = True
+try:
+  from numpy import resize, array, dot
+except:
+  try:
+    from Numeric import resize, array, dot
+  except:
+    print _("You need to have either numpy or Python Numeric installed for this tool to work!")
+    working = False
+
+try:
+  from scipy.optimize.optimize import fmin
+except:
+  print _("You need to have scipy installed for this tool to work!")
+  working = False
+
+devinfo = getActiveDeviceInfo()
+if devinfo is None:
+  print _("No device present to calibrate!")
+  working = False
+else:
+  devs = devinfo.device.getValue()
+  if len(devs) < 1:
+    print _("No device present to calibrate!")
+    working = False
+
+if not working:
+  exit(1)
+
+
+use_default_viewpoint = True
+viewpoint_data = None
+if CALIB_VIEWPOINT:
+  from Tkinter import *
+
+  class Wizard:
+    def __init__(self, parent):
+      self.parent = parent
+
+      # Basic layout
+
+      self.wzd_panel = Frame(parent)
+      self.wzd_panel.grid(row=0, sticky=W+E+N+S)
+
+      btn_panel = Frame(parent)
+      btn_panel.grid(row=1, sticky=W+E+N+S)
+
+      parent.columnconfigure(0, weight=1)
+      parent.rowconfigure(0, weight=1)
+      parent.rowconfigure(1, weight=0)
+
+      self.cncl = Button( btn_panel,
+                          text=_("Cancel"),
+                          command=self.cancel )
+      self.back = Button( btn_panel,
+                          text=_("Back"),
+                          state=DISABLED,
+                          command=self.back )
+      self.next = Button( btn_panel,
+                          text=_("Next >>"),
+                          command=self.next )
+
+      self.next.pack(side=RIGHT,padx=5)
+      self.back.pack(side=RIGHT,padx=5)
+      self.cncl.pack(side=LEFT,padx=5)
+
+      # Wizard panels
+
+      msg1 = Text( self.wzd_panel,
+                   width=50,
+                   height=10,
+                   wrap=WORD,
+                   relief=FLAT,
+                   font=("Helvetica",12) )
+      msg1.insert(END,_("""This is the Calib viewpoint calibration wizard. It will help you to configure the correct camera for your display, which is necessary for the correct stereo calibration.
+
+If you already have a good default viewpoint then press Cancel to continue with the haptics device calibration."""))
+      msg1.configure(state=DISABLED)
+      
+      entr_panel = Frame(self.wzd_panel)
+      msg2 = Text( entr_panel,
+                   width=50,
+                   height=7,
+                   wrap=WORD,
+                   relief=FLAT,
+                   font=("Helvetica",12) )
+      msg2.insert(END,_("""Enter the height of your screen and the screen distance from the users eyes in meters."""))
+      msg2.configure(state=DISABLED)
+      msg2.grid(row=0,columnspan=2,sticky=W+E+N+S)
+
+      Label(entr_panel,text=_("Screen height (m):")).grid(row=1,column=0,sticky=E)
+      Label(entr_panel,text=_("Screen distance (m):")).grid(row=2,column=0,sticky=E)
+
+      self.screen_h = Entry(entr_panel)
+      self.screen_h.grid(row=1,column=1,sticky=N+E+W+S)
+
+      self.screen_d = Entry(entr_panel)
+      self.screen_d.grid(row=2,column=1,sticky=N+E+W+S)
+
+      entr_panel.columnconfigure(0, weight=1)
+      entr_panel.columnconfigure(1, weight=1)
+      entr_panel.rowconfigure(0, weight=1)
+      entr_panel.rowconfigure(1, weight=0)
+      entr_panel.rowconfigure(2, weight=0)
+
+      msg3 = Text( self.wzd_panel,
+                   width=50,
+                   height=7,
+                   wrap=WORD,
+                   relief=FLAT,
+                   font=("Helvetica",12) )
+      msg3.insert(END,_("""The view has been calculated. Press finish to continue with the haptics device calibration."""))
+      msg3.configure(state=DISABLED)
+
+      self.active_panel = 0
+      self.panels = [ msg1, entr_panel, msg3 ]
+      self.panels[self.active_panel].pack(expand=1,fill=BOTH)
+
+    def next(self):
+      if self.active_panel +1 == len(self.panels):
+        global use_default_viewpoint, viewpoint_data
+        use_default_viewpoint = False
+        viewpoint_data = ( float(self.screen_h.get()),
+                           float(self.screen_d.get()) )
+        self.parent.destroy()
+        return
+
+      if self.active_panel == 1:
+        try:
+          a, b = float(self.screen_h.get()), float(self.screen_d.get())
+          if a <= 0 or b <= 0:
+            return
+        except:
+          return
+
+      self.panels[self.active_panel].pack_forget()
+      self.active_panel += 1
+      self.panels[self.active_panel].pack(expand=1,fill=BOTH)
+
+      if self.active_panel == 1:
+        self.back.configure(state=ACTIVE)
+      if self.active_panel +1 == len(self.panels):
+        self.next.configure(text=_("Finish"))
+
+      self.parent.update()
+
+    def back(self):
+      if self.active_panel +1 == len(self.panels):
+        self.next.configure(text=_("Next >>"))
+
+      self.panels[self.active_panel].pack_forget()
+      self.active_panel -= 1
+      self.panels[self.active_panel].pack(expand=1,fill=BOTH)
+
+      if self.active_panel == 0:
+        self.back.configure(state=DISABLED)
+
+      self.parent.update()
+
+    def cancel(self):
+      self.parent.destroy()
+
+  tkwin = Tk()
+  tkwin.title(_("Viewpoint Wizard"))
+  wizard = Wizard(tkwin)
+  tkwin.wait_window(tkwin)
+
+root, = references.getValue()
+
+if not use_default_viewpoint:
+
+  import math
+
+  viewpoint = createX3DNodeFromString("<Viewpoint/>")[0]
+  viewpoint.position.setValue(Vec3f(0,0,viewpoint_data[1]))
+  viewpoint.fieldOfView.setValue(2*math.atan(0.5*viewpoint_data[0]/
+                                             viewpoint_data[1]))
+  
+  stereoinfo = createX3DNodeFromString("<StereoInfo/>")[0]
+  stereoinfo.focalDistance.setValue(viewpoint_data[1])
+  
+  root.children.push_back(viewpoint)
+  root.children.push_back(stereoinfo)
+  
+  print "\n",
+  print "<Viewpoint\n",
+  print "  position=\"%s\"\n" % viewpoint.position.getValue(),
+  print "  fieldOfView=\"%f\"/>\n" % viewpoint.fieldOfView.getValue(),
+  print "<StereoInfo\n",
+  print "  focalDistance=\"%f\"/>\n" % viewpoint_data[1],
+  print "\n",
+
+switch = createX3DNodeFromString( "<Switch/>" )[0]
+root.children.push_back(switch)
+group = None
+
+state = SFInt32()
+
+trackerPosition = SFVec3f()
+trackerOrientation = SFRotation()
+
+trackerButton = SFBool()
+
+stylus_transparency = SFFloat()
+stylus_transparency.setValue(0.0)
+
+class Ctrl(TypedField( SFBool,
+                       (SFBool,SFVec3f,SFRotation))):
+  def __init__(self):
+    SFBool.__init__(self)
+    
+    self.button = 0
+    
+    self.Ap = []
+    self.Bp = []
+  
+    self.Ar = []
+    self.Br = []
+    
+    state.setValue(0)
+
+    self.time = time.getValue()
+      
+  def update(self, event):
+    global group
+
+    inputs = self.getRoutesIn()
+
+    if len(inputs) < 3:
+      return 0
+    
+    button = inputs[0].getValue()
+    position = inputs[1].getValue()
+    orientation = inputs[2].getValue()
+
+    self_button = self.button
+    self.button = button
+    new_time = time.getValue()
+    
+    if button and not self_button:
+      stylus_transparency.setValue(0.75)
+      
+      sphere = createX3DNodeFromString( """
+      <Transform>
+       <Shape>
+        <Appearance DEF="APP">
+         <Material
+           diffuseColor="1.0 0.3 0.4" />
+        </Appearance>
+        <Sphere
+          radius="0.01" />
+       </Shape>
+       <Transform
+         translation="0 0 0.035"
+         rotation="1 0 0 1.5708">
+        <Shape>
+         <Appearance USE="APP" />
+         <Cone
+           bottomRadius="0.003"
+           height="0.07" />
+        </Shape>
+       </Transform>
+       <Transform
+         translation="0 0.01 0"
+         rotation="0 1 0 -1.5708">
+        <Shape>
+         <Appearance USE="APP" />
+         <Cone
+           bottomRadius="0.005"
+           height="0.02" />
+        </Shape>
+       </Transform>
+      </Transform>
+      """ )[0]
+      
+      sphere.translation.setValue( position )
+      sphere.rotation.setValue( orientation )
+      group.children.push_back( sphere )
+      
+      if len(self.Ap) == len(self.Bp):
+        
+        self.Ap.append( [ position.x, position.y, position.z, 1 ] )
+        self.Ar.append( Quaternion( orientation ) )
+        
+      if new_time > self.time + .5:
+        
+        if len(self.Ap) < 2:
+          state.setValue(1)
+        else:
+          state.setValue(3)
+        
+      else:
+        state.setValue(5)
+
+      self.time = new_time
+
+    if not button and self_button:
+      stylus_transparency.setValue(0.0)
+      
+      sphere = createX3DNodeFromString( """
+      <Transform>
+       <Shape>
+        <Appearance DEF="APP">
+         <Material
+           diffuseColor="0.5 0.9 0.3" />
+        </Appearance>
+        <Sphere
+          radius="0.01" />
+       </Shape>
+       <Transform
+         translation="0 0 0.035"
+         rotation="1 0 0 1.5708">
+        <Shape>
+         <Appearance USE="APP" />
+         <Cone
+           bottomRadius="0.003"
+           height="0.07" />
+        </Shape>
+       </Transform>
+       <Transform
+         translation="0 0.01 0"
+         rotation="0 1 0 -1.5708">
+        <Shape>
+         <Appearance USE="APP" />
+         <Cone
+           bottomRadius="0.005"
+           height="0.02" />
+        </Shape>
+       </Transform>
+      </Transform>
+      """ )[0]
+      
+      sphere.translation.setValue( position )
+      sphere.rotation.setValue( orientation )
+      group.children.push_back( sphere )
+
+      if len(self.Ap)-1 == len(self.Bp):
+        
+        self.Bp.append( [ position.x, position.y, position.z, 1 ] )
+        self.Br.append( Quaternion( orientation ) )
+      
+      if new_time > self.time + .5:
+        
+        if len(self.Ap) < 2:
+          state.setValue(2)
+        else:
+          state.setValue(3)
+        
+      else:
+        state.setValue(5)
+
+      self.time = new_time
+
+    return 0
+
+  def undo(self):
+    self.Ap = self.Ap[:-1]
+    self.Bp = self.Bp[:-1]
+    self.Ar = self.Ar[:-1]
+    self.Br = self.Br[:-1]
+    
+  def undoAll(self):
+    self.Ap = []
+    self.Bp = []
+    self.Ar = []
+    self.Br = []
+
+  def hasPosDef(self):
+    for i in range(len(self.Ap)):
+      if (Vec3f(self.Ap[i][0],
+                self.Ap[i][1],
+                self.Ap[i][2]) -
+          Vec3f(self.Bp[i][0],
+                self.Bp[i][1],
+                self.Bp[i][2])).length() > 1e-10:
+        return True
+    return False
+
+  def hasRotDef(self):
+    for i in range(len(self.Ap)):
+      if Rotation(self.Ar[i]*self.Br[i].conjugate()).a > 1e-6:
+        return True
+    return False
+
+  def funcPos(self,x):
+    M = resize(x,(4,4))
+    M[3][0] = M[3][1] = M[3][2] = 0
+    M[3][3] = 1
+    
+    residual = 1e-5 * sum(x)
+    for i in range(len(self.Ap)):
+      
+      ap = array(self.Ap[i])
+      bp = array(self.Bp[i])
+      
+      a2 = dot( M, ap );
+      
+      d = 1000*(bp - a2)
+      dL = dot( d, d )
+      residual = residual + dL
+    
+    return residual
+
+  def solvePos(self):
+    M = fmin( self.funcPos, [ 1.0, 0.1, 0.1, 0.1,
+                              0.1, 1.0, 0.1, 0.1,
+                              0.1, 0.1, 1.0, 0.1 ],
+              (), 1e-6, 1e-6,
+              100000, 100000, 0, 0, 0 )
+    return M
+  
+  def funcRot(self,x):
+    axis = Vec3f( x[0], x[1], x[2] )
+    angle = axis.length()
+    axis = axis / angle
+    
+    R = Quaternion( Rotation( axis, angle ) )
+    
+    residual = 1e-5 * sum(x)
+    for i in range(len(self.Ar)):
+      
+      ar = self.Ar[i]
+      br = self.Br[i]
+      
+      residual += Rotation( br.conjugate() * ( R * ar ) ).a ** 2
+      
+    return residual
+  
+  def solveRot(self):
+    M = fmin( self.funcRot, [ 1.0, 1.0, 1.0 ],
+              (), 1e-6, 1e-6,
+              100000, 100000, 0, 0, 0 )
+    return M
+
+
+device = -1
+ctrl = None
+ctrls = []
+
+deviceString = MFString()
+
+for dev in devs:
+  dev.stylus.setValue(None)
+  
+  ctrl = Ctrl()
+  trackerButton.route(ctrl)
+  ctrl.route( eventSink )
+  
+  ctrls.append(ctrl)
+  grp = createX3DNodeFromString( "<Group/>" )[0]
+  switch.children.push_back(grp)
+
+def setDevice(new_device):
+  global device, group, ctrl
+  
+  if new_device < 0 or new_device >= len(devs):
+    return
+  
+  if device > -1:
+    devs[device].trackerPosition.unroute(trackerPosition)
+    devs[device].trackerOrientation.unroute(trackerOrientation)
+    devs[device].mainButton.unroute(trackerButton)
+    devs[device].trackerPosition.unroute( ctrl )
+    devs[device].trackerOrientation.unroute( ctrl )
+    
+    deviceString.setValue( (_("Active device: %d") % new_device ).split("\n") )
+    state.setValue(6)
+  
+  device = new_device
+  ctrl = ctrls[device]
+  
+  devs[device].trackerPosition.route(trackerPosition)
+  devs[device].trackerOrientation.route(trackerOrientation)
+  devs[device].mainButton.route(trackerButton)
+  devs[device].trackerPosition.route( ctrl )
+  devs[device].trackerOrientation.route( ctrl )
+  
+  group = switch.children.getValue()[device]
+  switch.whichChoice.setValue(device)
+  
+setDevice(0)
+
+
+class Typist( TypedField(AutoUpdate(SFBool), SFString ) ):
+  
+  def __init__(self):
+    AutoUpdate(SFBool).__init__(self)
+    self.state = 0
+    self.matrix = {}
+    self.rotation = {}
+  
+  def update( self, event ):
+    global device, group, ctrl
+    
+    c = event.getValue()
+
+    if c == 'Z':
+      ctrl.undoAll()
+      group.children.setValue( [] )
+      
+    elif c == 'z':
+      ctrl.undo()
+      spheres = group.children.getValue()
+      group.children.setValue( spheres[:-2] )
+      
+    elif c == 'p':
+      if not (( device in self.rotation and self.rotation[device] is not None ) or
+              ( device in self.matrix and self.matrix[device] is not None )):
+        state.setValue(7)
+      
+      else:
+        print
+        if len(self.rotation) > 1 or len(self.matrix) > 1:
+          print "Unit %d" % device
+        if device in self.rotation and self.rotation[device] is not None:
+          print """
+orientationCalibration="%f %f %f %f"
+""" % ( self.rotation[device].x,
+        self.rotation[device].y,
+        self.rotation[device].z,
+        self.rotation[device].a )
+        if device in self.matrix and self.matrix[device] is not None:
+          print """
+positionCalibration="%f %f %f %f
+                     %f %f %f %f
+                     %f %f %f %f
+                     %f %f %f %f"
+""" % ( self.matrix[device].getElement(0,0),
+        self.matrix[device].getElement(0,1),
+        self.matrix[device].getElement(0,2),
+        self.matrix[device].getElement(0,3),
+        self.matrix[device].getElement(1,0),
+        self.matrix[device].getElement(1,1),
+        self.matrix[device].getElement(1,2),
+        self.matrix[device].getElement(1,3),
+        self.matrix[device].getElement(2,0),
+        self.matrix[device].getElement(2,1),
+        self.matrix[device].getElement(2,2),
+        self.matrix[device].getElement(2,3),
+        self.matrix[device].getElement(3,0),
+        self.matrix[device].getElement(3,1),
+        self.matrix[device].getElement(3,2),
+        self.matrix[device].getElement(3,3) )
+        state.setValue(8)
+    
+    elif c == 'c':
+      
+      if ctrl.hasPosDef():
+        T = ctrl.solvePos()
+        M = Matrix4f( T[ 0], T[ 1], T[ 2], T[ 3],
+                      T[ 4], T[ 5], T[ 6], T[ 7],
+                      T[ 8], T[ 9], T[10], T[11],
+                          0 ,    0 ,    0 ,    1 )
+        
+        M = M.inverse() * devs[device].positionCalibration.getValue()
+        devs[device].positionCalibration.setValue(M)
+        self.matrix[device] = M
+      else:
+        self.matrix[device] = None
+      
+      if ctrl.hasRotDef():
+        T = ctrl.solveRot()
+        axis = Vec3f( T[0], T[1], T[2] )
+        angle = axis.length()
+        axis = axis / angle
+        R = Rotation( axis, angle )
+        
+        R = (-R) * devs[device].orientationCalibration.getValue()
+        devs[device].orientationCalibration.setValue(R)
+        self.rotation[device] = R
+      else:
+        self.rotation[device] = None
+      
+      ctrl.undoAll()
+      group.children.setValue( [] )
+      
+      state.setValue(4)
+
+    elif c == ' ':
+      self.state = not self.state
+      
+    elif c.isdigit():
+      setDevice( int(c) )
+    
+    return self.state
+    
+typist = Typist()
+keyboard = createX3DNodeFromString("<KeySensor />")[0]
+keyboard.keyPress.route(typist)
+typist.route(trackerButton)
+
+
+text_state_0 = MFString()
+text_state_0.setValue(_("Select a position and hold down the button\nThe space key toggles the button\nPress a number key (0-9) to select device").split("\n"))
+
+text_state_1 = MFString()
+text_state_1.setValue(_("Move the real instrument into the red stylus and release the button").split("\n"))
+
+text_state_2 = MFString()
+text_state_2.setValue(_("Find a new position and orientation and hold down the button again").split("\n"))
+
+text_state_3 = MFString()
+text_state_3.setValue(_("When you have enough samples press <c>").split("\n"))
+
+text_state_4 = MFString()
+text_state_4.setValue(_("The device is calibrated\nYou may perform the calibration procedure again\nAlternatively you may press <p> to print the calibration settings").split("\n"))
+
+text_state_5 = MFString()
+text_state_5.setValue(_("Dropped the button?\nUndo last sample with <z>\nUndo all with samples with <Z>").split("\n"))
+
+text_state_6 = deviceString
+
+text_state_7 = MFString()
+text_state_7.setValue(_("Could not print calibration data\nHave you pressed <c> to calibrate?").split("\n"))
+
+text_state_8 = MFString()
+text_state_8.setValue(_("The calibration data have been printed to your terminal").split("\n"))

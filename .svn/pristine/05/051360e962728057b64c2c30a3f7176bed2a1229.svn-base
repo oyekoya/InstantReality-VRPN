@@ -1,0 +1,131 @@
+# Copyright 2008, Karljohan Lundin Palmerius
+#
+
+"""This file provides scripts for the Candy package.
+
+Do not use this file directly, but use instead the pick_RGB.x3d
+file. See the documentation in that file for details on use.
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+import math, colorsys
+
+
+color = SFColor()
+position = SFVec3f()
+#trigger = SFBool()
+#active = SFBool()
+
+
+move_position = SFVec3f()
+move_active = SFBool()
+move_transform = SFMatrix4f()
+
+
+class Pos2Color(TypedField(SFColor,(SFMatrix4f,SFVec3f))):
+  
+  def update(self,event):
+    
+    routes_in = self.getRoutesIn()
+    if len(routes_in) < 2:
+      return RGB(.5,.5,.5)
+    
+    T = routes_in[0].getValue()
+    pos = T * routes_in[1].getValue()
+    
+    return RGB( min( 1, max( 0, pos.x/.2+.5 )),
+                min( 1, max( 0, pos.y/.2+.5 )),
+                min( 1, max( 0, pos.z/.2+.5 )) )
+
+class Color2Pos(TypedField(SFVec3f,SFColor)):
+  
+  def update(self,event):
+    
+    rgb = self.getRoutesIn()[0].getValue()
+    
+    return Vec3f( .2*(rgb.r-.5),
+                  .2*(rgb.g-.5),
+                  .2*(rgb.b-.5) )
+
+color2pos = Color2Pos()
+color.route(color2pos)
+color2pos.route(position)
+
+pos2color = Pos2Color()
+pos2color.route(color)
+pos2color.setValue(RGB(.5,.5,.5))
+
+
+class Trigger(TypedField(SFBool,(SFMatrix4f,SFVec3f))):
+  
+  def update(self,event):
+    
+    routes_in = self.getRoutesIn()
+    T = routes_in[0].getValue()
+    pos = T * routes_in[1].getValue()
+    
+    return ( math.fabs(pos.x) < .1 and \
+             math.fabs(pos.y) < .1 and \
+             math.fabs(pos.z) < .1 )  
+
+trigger = Trigger()
+move_transform.route(trigger)
+move_position.route(trigger)
+
+
+class Activator(TypedField(SFBool,(SFBool,SFBool))):
+  def __init__(self):
+    SFBool.__init__(self)
+    self.button = False
+    self.active = False
+    
+  def update(self,event):
+    routes_in = self.getRoutesIn()
+    button = routes_in[0].getValue()
+    trigger = routes_in[1].getValue()
+    
+    if trigger and button and not self.button:
+      move_transform.route(pos2color)
+      move_position.route(pos2color)
+      self.active = True
+    
+    elif self.active and not button and self.button:
+      move_transform.unroute(pos2color)
+      move_position.unroute(pos2color)
+      self.active = False
+    
+    self.button = button
+    return self.active
+
+active = Activator()
+move_active.route(active)
+trigger.route(active)
+active.route(eventSink)
+
+
+class Constraint(SFBool):
+  def update(self,event):
+    return not self.getRoutesIn()[0].getValue()
+constraint = Constraint()
+active.route(constraint)

@@ -1,0 +1,315 @@
+# Copyright 2005-2009, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This Python-script implements the 'Bubble' technique for extending the
+reach of a small workspace haptics device into a larger
+environment. In this approach a sphere is defined around the centre of
+the device's workspace. When interacting inside of this sphere the
+normal mode of interaction is executed. If the probe is moved outside
+the sphere, however, the sphere is pushed and thereby translated to a
+new position in space.
+
+The following should be provided through the "references" field:
+*) the haptics device on which to operate.
+
+The following may be provided through the "reference" field:
+*) a group node into which a visual representation of the workspace
+   and a spring effect will be placed
+*) a MetadataFloat named "radius" with the radius of the workspace sphere
+*) a MetadataFloat named "center" with a displacement vector of the
+   workspace sphere
+*) a MetadataFloat named "springConstant" with the spring constant of the
+   feedback from pushing the workspace
+*) a MetadataFloat named "limits" with six values specifying the
+   limits of the space the workspace may travel within as x-min, x-max,
+   y-min, y-max, z-min, z-max
+
+Example:
+
+  <IMPORT inlineDEF="H3D_EXPORTS" exportedDEF="HDEV" AS="HDEV"/>
+  <PythonScript url="urn:candy:python/Bubble.py">
+    <MetadataFloat name="radius"
+                   value="0.05"
+                   containerField="references"/>
+    <MetadataFloat name="center"
+                   value="0 0 0"
+                   containerField="references"/>
+    <HapticsDevice USE="HDEV"
+                   containerField="references"/>
+    <Group USE="GROUP" containerField="references"/>
+  </PythonScript>
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+
+args = references.getValue()
+
+reset = SFBool()
+
+initialCalibration = SFMatrix4f()
+
+center = SFVec3f()
+radius = SFFloat()
+
+springConstant = SFFloat()
+
+
+reset.setValue(False)
+center.setValue(Vec3f(0,0,0))
+radius.setValue(0.05)
+springConstant.setValue(200)
+
+device = None
+group = None
+limits = None
+
+for arg in args:
+  
+  if hasattr(arg,"positionCalibration"):
+    device = arg
+  
+  elif hasattr(arg,"children"):
+    group = arg
+  
+  elif hasattr(arg,"name"):
+    
+    if arg.name.getValue() == "radius":
+      radius.setValue(arg.value.getValue()[0])
+      
+    elif arg.name.getValue() == "springConstant":
+      springConstant.setValue(arg.value.getValue()[0])
+      
+    elif arg.name.getValue() == "center":
+      center.setValue(Vec3f(arg.value.getValue()[0],
+                            arg.value.getValue()[1],
+                            arg.value.getValue()[2]))
+      
+    elif arg.name.getValue() == "limits":
+      limits = arg.value.getValue()
+    
+if device is None:
+  di = getActiveDeviceInfo()
+  devices = di.devices.getValue()
+  if len(devices) > 0:
+    device = devices[0]
+  else:
+    print "Bubble: no device available!"
+    exit(1)
+
+
+initialCalibration.setValue(device.positionCalibration.getValue())
+
+
+class DeviceOffset(TypedField( SFVec3f,
+                               ( SFVec3f,   # sphere position
+                                 SFFloat,   # sphere radius
+                                 SFBool,    # reset
+                                 SFVec3f    # tracker position
+                                 ))):
+  def __init__(self):
+    SFVec3f.__init__(self)
+    self.last_time = time.getValue()
+    self.offset = Vec3f(0,0,0)
+  
+  def update(self, event):
+
+    this_time = time.getValue()
+    dt = ( this_time - self.last_time )
+    self.last_time = this_time
+    
+    try:
+      inputs = self.getRoutesIn()
+      sphere_x = inputs[0].getValue()
+      sphere_r = inputs[1].getValue()
+      reset = inputs[2].getValue()
+      dev_x = inputs[3].getValue()
+    except:
+      return self.offset
+    
+    if reset:
+      self.offset = Vec3f(0,0,0)
+      return self.offset
+    
+    disp = dev_x - self.offset - 2*sphere_x
+    disp_length = disp.length()
+    if disp_length > sphere_r:
+      self.offset += (100*dt*(disp_length-sphere_r)) * disp
+      if not limits is None:
+        self.offset.x = max(self.offset.x,limits[0])
+        self.offset.x = min(self.offset.x,limits[1])
+        self.offset.y = max(self.offset.y,limits[0])
+        self.offset.y = min(self.offset.y,limits[1])
+        self.offset.z = max(self.offset.z,limits[0])
+        self.offset.z = min(self.offset.z,limits[1])
+      
+    return self.offset
+
+deviceOffset = DeviceOffset()
+center.route(deviceOffset)
+radius.route(deviceOffset)
+reset.route(deviceOffset)
+device.trackerPosition.route(deviceOffset)
+
+
+class DeviceMatrix(TypedField( SFMatrix4f,
+                               ( SFMatrix4f,
+                                 SFVec3f ))):
+  def update(self,event):
+    try:
+      inputs = self.getRoutesIn()
+      matrix = inputs[0].getValue()
+      position = inputs[1].getValue()
+    except:
+      return Matrix4f()
+
+    translation = matrix.getTranslationPart()
+    
+    matrix.setElement(0,3,translation.x+position.x)
+    matrix.setElement(1,3,translation.x+position.y)
+    matrix.setElement(2,3,translation.x+position.z)
+    
+    return matrix
+
+positionCalibration = DeviceMatrix()
+initialCalibration.route(positionCalibration)
+deviceOffset.route(positionCalibration)
+positionCalibration.route(device.positionCalibration)
+
+
+class WorkspacePosition(TypedField( SFVec3f,
+                                    ( SFVec3f, # Center
+                                      SFVec3f  # Offset
+                                      ))):
+  def update(self, event):
+    try:
+      inputs = self.getRoutesIn()
+      workspace_x = inputs[0].getValue()
+      offset_x = inputs[1].getValue()
+    except:
+      return Vec3f(0,0,0)
+    return workspace_x + offset_x
+  
+workspacePosition = WorkspacePosition()
+center.route(workspacePosition)
+deviceOffset.route(workspacePosition)
+
+
+class SpringPosition(TypedField( SFVec3f,
+                                 ( SFVec3f, # Center
+                                   SFFloat, # Radius
+                                   SFVec3f, # Workspace position
+                                   SFVec3f  # Position
+                                   ))):
+  def update(self, event):
+    try:
+      inputs = self.getRoutesIn()
+      sphere_x = inputs[0].getValue()
+      sphere_r = inputs[1].getValue()
+      workspace_x = inputs[2].getValue()
+      device_x = inputs[3].getValue()
+    except:
+      return Vec3f(0,0,0)
+
+    N = device_x - workspace_x - sphere_x
+    if N.length() < 1e-10:
+      return Vec3f(0,0,0)
+    return workspace_x + sphere_x + (sphere_r/N.length()) * N
+
+springPosition = SpringPosition()
+center.route(springPosition)
+radius.route(springPosition)
+workspacePosition.route(springPosition)
+device.trackerPosition.route(springPosition)
+
+
+class SpringConstant(TypedField( SFFloat,
+                                 ( SFVec3f, # Center
+                                   SFFloat, # Radius
+                                   SFVec3f, # Workspace position
+                                   SFVec3f, # Position
+                                   SFFloat  # Spring constant
+                                   ))):
+  def __init__(self,constant):
+    SFFloat.__init__(self)
+    self.constant = constant
+    
+  def update(self, event):
+    try:
+      inputs = self.getRoutesIn()
+      sphere_x = inputs[0].getValue()
+      sphere_r = inputs[1].getValue()
+      workspace_x = inputs[2].getValue()
+      device_x = inputs[3].getValue()
+    except:
+      return Vec3f(0,0,0)
+
+    N = device_x - workspace_x - sphere_x
+    return 0 if N.length() < sphere_r else self.constant
+
+springConstantOnOff = SpringConstant(300)
+center.route(springConstantOnOff)
+radius.route(springConstantOnOff)
+workspacePosition.route(springConstantOnOff)
+device.trackerPosition.route(springConstantOnOff)
+springConstant.route(springConstantOnOff)
+
+
+if not group is None:
+  spring,defs = createX3DNodeFromString("""
+  <SpringEffect
+     startDistance="1000"
+     escapeDistance="1000"/>""")
+  springPosition.route(spring.position)
+  springConstantOnOff.route(spring.springConstant)
+  group.children.push_back(spring)
+  
+  workspace,defs = createX3DNodeFromString("""
+  <Transform DEF="WORKSPACE">
+    <Transform DEF="OFFSET">
+      <Shape>
+        <Appearance>
+          <Material
+              DEF="MAT"
+              transparency="0.8"/>
+        </Appearance>
+        <Sphere
+            DEF="SPHERE"/>
+      </Shape>
+    </Transform>
+  </Transform>""")
+  center.route(defs["OFFSET"].translation)
+  radius.route(defs["SPHERE"].radius)
+  workspacePosition.route(defs["WORKSPACE"].translation)
+  group.children.push_back(workspace)
+
+  class Transparency(TypedField(SFFloat,SFVec3f)):
+    def update(self,event):
+      return 1.0 - min(0.8,0.1*self.getRoutesIn()[0].getValue().length())
+  transparency = Transparency()
+  spring.force.route(transparency)
+  transparency.route(defs["MAT"].transparency)
+
+

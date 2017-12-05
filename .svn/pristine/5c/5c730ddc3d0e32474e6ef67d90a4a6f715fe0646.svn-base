@@ -1,0 +1,74 @@
+/**
+   
+Copyright 2007, 2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+*/
+
+
+#ifndef _HVR_ARBACKGROUND_HH_
+#define _HVR_ARBACKGROUND_HH_
+
+#include <HVR/HVR.hh>
+
+#ifdef HAVE_ARTOOLKIT
+
+#include <HVR/ARToolkit.hh>
+
+#include <H3D/X3DBackgroundNode.h>
+#include <H3D/SFFloat.h>
+
+
+namespace HVR {
+  
+  /**
+     This is a background node that renders the ARToolKit camera image
+     to the background thereby providing a see-through Augmented
+     Reality environment.
+     
+     \beginX3D
+     \exposedField zoom \n1 SFFloat \n2 1 \n3
+      The background image camera zoom. \eol
+     \endX3D
+  */
+  class HVR_API ARBackground
+    : public H3D::X3DBackgroundNode {
+  
+  public:
+    /** Initializes local members */
+    ARBackground();
+    
+    static H3D::H3DNodeDatabase database;
+    
+    void renderBackground();
+    
+    H3D::RGBA glClearColor(){
+      return H3D::RGBA(0,0,0,0); }
+    
+    void render(){}
+    
+    /** The background image camera zoom. */
+    auto_ptr< H3D::SFFloat > zoom;
+  };
+}
+
+#endif
+#endif

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Oct 19, 2009 - huy - Ball Shooter -->
+<X3D profile="Full" version="3.0">
+  <Scene>
+	<Transform rotation='1 1 0 0.7854'>
+		<GraspTransform DEF='GT' grasp='false'>
+			<Shape>
+				<Appearance>
+					<Material diffuseColor='1 0 0' />
+				</Appearance>
+				<Box size='.1 .1 .1' />
+			</Shape>
+		</GraspTransform>
+	</Transform>
+	
+	<PythonScript url="C:\H3D\Plugins\ZSpace\ZSpace.py">
+		<GraspTransform USE='GT' containerField='references' />
+	</PythonScript>
+  </Scene>
+</X3D>

@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<X3D profile='Full' version="3.2">
+  <head>
+    <component name="RigidBodyPhysics"/>
+  </head>
+  <Scene>
+    <!-- Use the ImportLibrary to load the RigidBodyPhysics dynamic library if needed.-->
+    <!--ImportLibrary library='..\\bin\\RigidBodyPhysics_vc9'/-->
+    <!--ImportLibrary library='libRigidBodyPhysics.so'/-->
+    <GlobalSettings>
+      <CollisionOptions avatarCollision="false"/>
+    </GlobalSettings>
+	<DeviceInfo>
+    <MouseHapticsDevice
+        orientation="-0.577 0.577 0.577 0.785"
+        DEF="HDEV">
+      <RuspiniRenderer/>
+    </MouseHapticsDevice>
+  </DeviceInfo>
+    <IMPORT inlineDEF='H3D_EXPORTS' exportedDEF='HDEV' AS='HDEV' />
+	<PythonScript url="C:\H3D\Plugins\ZSpace\ZSpace.py" />
+    <Viewpoint DEF='V' position='0 0 1'/>
+	<Transform translation="0 0 -0.7">
+    <Transform translation='0 -0.1 0' rotation='1 0 0 0.5'>
+      <Transform DEF="Tx">
+        <Shape DEF="BoxShape">
+          <Appearance>
+            <Material diffuseColor="1 0.5 0" />
+          </Appearance>
+          <Box DEF='SmallBox' size="1.02 0.1 1.02"/>
+        </Shape>
+      </Transform>
+      <Transform DEF="Tx1">
+        <Shape DEF="BoxShape1">
+          <Appearance>
+            <Material diffuseColor="1 1 1" transparency="0.50"/>
+          </Appearance>
+          <Box DEF='boxGeom1' size="1.0 1.0 0.01"/>
+        </Shape>
+      </Transform>
+      <Transform DEF="Tx2">
+        <Shape DEF="BoxShape2">
+          <Appearance>
+            <Material diffuseColor="1 1 1" transparency="0.50"/>
+          </Appearance>
+          <Box DEF='boxGeom2' size="0.01 1.0 1.0"/>
+        </Shape>
+      </Transform>
+      <Transform DEF="Tx3">
+        <Shape DEF="BoxShape3">
+          <Appearance>
+            <Material diffuseColor="1 1 1" transparency="0.50"/>
+          </Appearance>
+          <Box DEF='boxGeom3' size="0.01 1.0 1.0"/>
+        </Shape>
+      </Transform>
+      <Transform DEF="Tx4">
+        <Shape DEF="BoxShape4">
+          <Appearance>
+            <Material diffuseColor="1 1 1" transparency="1" />
+          </Appearance>
+          <Box DEF='boxGeom4' size="1.0 1.0 0.01"/>
+        </Shape>
+      </Transform>
+
+      <Group DEF="group" />
+
+      <RigidBodyCollection DEF='RBC' gravity='0 -3.0 0' constantForceMix='0.001' physicsEngine = 'ODE' enabled='true'>
+        <CollisionCollection containerField='collider' DEF='CC' bounce='0.0' frictionCoefficients='1 100' softnessConstantForceMix='0.001'>
+          <CollidableShape DEF="CSx" containerField='collidables' translation='0.0 0.0 0.0' rotation='0 0 1 0'>
+            <Shape containerField='shape' USE='BoxShape'/>
+          </CollidableShape>
+          <CollidableShape DEF="CSx1" containerField='collidables' translation='0.0 0.0 0.0' rotation='0 0 1 0'>
+            <Shape containerField='shape' USE='BoxShape1'/>
+          </CollidableShape>
+          <CollidableShape DEF="CSx2" containerField='collidables' translation='0.0 0.0 0.0' rotation='0 0 1 0'>
+            <Shape containerField='shape' USE='BoxShape2'/>
+          </CollidableShape>
+          <CollidableShape DEF="CSx3" containerField='collidables' translation='0.0 0.0 0.0' rotation='0 0 1 0'>
+            <Shape containerField='shape' USE='BoxShape3'/>
+          </CollidableShape>
+          <CollidableShape DEF="CSx4" containerField='collidables' translation='0.0 0.0 0.0' rotation='0 0 1 0'>
+            <Shape containerField='shape' USE='BoxShape4'/>
+          </CollidableShape>
+        </CollisionCollection>
+
+        <RigidBody DEF='RBx' mass='0.2' useGlobalGravity='true' fixed='true' position='0.0 -0.15 0.0'  orientation='0 0 1 0'>
+          <Geometry USE='CSx' containerField='geometry'/>
+          <Box USE='SmallBox' containerField='massDensityModel' />
+        </RigidBody>
+        <RigidBody DEF='RBx1' mass='0.2' useGlobalGravity='true' fixed='true' position='0.0 0.4 -0.5'  orientation='0 0 1 0'>
+          <Geometry USE='CSx1' containerField='geometry'/>
+          <Box USE='boxGeom1' containerField='massDensityModel' />
+        </RigidBody>
+        <RigidBody DEF='RBx2' mass='0.2' useGlobalGravity='true' fixed='true' position='-0.51 0.4 0.0'  orientation='0 0 1 0'>
+          <Geometry USE='CSx2' containerField='geometry'/>
+          <Box USE='boxGeom2' containerField='massDensityModel' />
+        </RigidBody>
+        <RigidBody DEF='RBx3' mass='0.2' useGlobalGravity='true' fixed='true' position='0.51 0.4 0.0'  orientation='0 0 1 0'>
+          <Geometry USE='CSx3' containerField='geometry'/>
+          <Box USE='boxGeom3' containerField='massDensityModel' />
+        </RigidBody>
+        <RigidBody DEF='RBx4' mass='0.2' useGlobalGravity='true' fixed='true' position='0.0 0.4 0.51'  orientation='0 0 1 0'>
+          <Geometry USE='CSx4' containerField='geometry'/>
+          <Box USE='boxGeom4' containerField='massDensityModel' />
+        </RigidBody>
+      </RigidBodyCollection>
+
+      <Group DEF="routes" />
+    </Transform>
+
+      <ROUTE fromNode='RBx' fromField='position' toNode='Tx' toField='translation'/>
+      <ROUTE fromNode='RBx' fromField='orientation' toNode='Tx' toField='rotation'/>
+      <ROUTE fromNode='RBx1' fromField='position' toNode='Tx1' toField='translation'/>
+      <ROUTE fromNode='RBx1' fromField='orientation' toNode='Tx1' toField='rotation'/>
+      <ROUTE fromNode='RBx2' fromField='position' toNode='Tx2' toField='translation'/>
+      <ROUTE fromNode='RBx2' fromField='orientation' toNode='Tx2' toField='rotation'/>
+      <ROUTE fromNode='RBx3' fromField='position' toNode='Tx3' toField='translation'/>
+      <ROUTE fromNode='RBx3' fromField='orientation' toNode='Tx3' toField='rotation'/>
+      <ROUTE fromNode='RBx4' fromField='position' toNode='Tx4' toField='translation'/>
+      <ROUTE fromNode='RBx4' fromField='orientation' toNode='Tx4' toField='rotation'/>
+
+
+      <Transform DEF="Nr">
+        <Transform translation="0.25 0.2 0">
+          <Shape>
+            <Appearance>
+              <Material diffuseColor="1 1 1" />
+            </Appearance>
+            <Text DEF="Text" string='"Reset with R-key""or right mouse button""Turn auto on/off with A-key"' solid="true">
+              <FontStyle justify='"MIDDLE" "BEGIN"' size="0.015" spacing="1" />
+            </Text>
+          </Shape>
+          <Transform translation="0.01 -0.022 -0.01">
+            <Shape>
+              <Appearance>
+                <Material diffuseColor="0 0 0" />
+              </Appearance>
+              <Rectangle2D size="0.17 0.049" solid="true"/>
+            </Shape>
+          </Transform>
+        </Transform>
+      </Transform>
+
+      <TimeSensor DEF='TS' cycleInterval='5' loop='true' />
+
+      <PythonScript DEF="PS" url="Tower.py">
+        <Group USE="group" containerField="references"/>
+        <RigidBodyCollection USE="RBC" containerField="references" />
+        <CollisionCollection USE="CC" containerField="references" />
+        <Group USE="routes" containerField="references"/>
+        <TimeSensor USE='TS' containerField="references"/>
+      </PythonScript>
+
+      <ROUTE fromNode="V" fromField="totalPosition" toNode="PS" toField="textPos" />
+      <ROUTE fromNode="V" fromField="totalOrientation" toNode="PS" toField="textPos" />
+      <ROUTE fromNode="PS" fromField="textPos" toNode="Nr" toField="translation" />
+      <ROUTE fromNode="V" fromField="totalOrientation" toNode="Nr" toField="rotation" />
+
+      <MouseSensor DEF="MS" />
+      <ROUTE fromNode="MS" fromField="leftButton" toNode="PS" toField="add_box" />
+
+      <KeySensor DEF='KS' enabled='true' />
+      <ROUTE fromNode='KS' fromField='keyPress' toNode='PS' toField='printView' />
+      <ROUTE fromNode='KS' fromField='keyPress' toNode='PS' toField='printCounter' />
+      <ROUTE fromNode='KS' fromField='keyPress' toNode='PS' toField='kReset' />
+      <ROUTE fromNode='KS' fromField='keyPress' toNode='PS' toField='auto' />
+
+      <ROUTE fromNode='TS' fromField='cycleTime' toNode='PS' toField='auto' />
+	  </Transform>
+  </Scene>
+</X3D>

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2008, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Scene>
+  
+  <PythonScript url="urn:candy:python/AutoLoadSO.py"/>
+  
+  <FiniteStateMachine
+      DEF="FSM"
+      url="urn:candy:x3d/example_FiniteStates.xml"/>
+  
+  <Background
+      skyColor="0.5 0.5 0.5"/>
+  
+  <NavigationInfo
+      headlight="false"/>
+  
+  <PointLight
+      location="0 .5 .5"
+      intensity=".8"
+      ambientIntensity=".5"/>
+  <PointLight
+      location="+0.5 -.5 .5"
+      intensity=".2"/>
+  <PointLight
+      location="+0.0 -.5 .5"
+      intensity=".2"/>
+  <PointLight
+      location="-0.5 -.5 .5"
+      intensity=".2"/>
+  
+  <Transform
+      translation="0 .12 0">
+    <Switch
+        DEF="SELECTOR">
+      <Shape>
+        <Appearance
+            DEF="APP">
+          <Material
+              diffuseColor=".3 .2 .9"
+              specularColor="1 1 1"/>
+        </Appearance>
+        <Box size="0.05 0.05 0.05"/>
+      </Shape>
+      <Shape>
+        <Appearance
+            USE="APP"/>
+        <Cone height="0.04" bottomRadius="0.03"/>
+      </Shape>
+    </Switch>
+  </Transform>
+  
+  <ROUTE_NO_EVENT
+      fromNode="FSM" fromField="stateId"
+      toNode="SELECTOR" toField="whichChoice"/>
+  
+  <Transform
+      DEF="TR1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".3 .8 .4"
+            specularColor="1 1 1"/>
+      </Appearance>
+      <Sphere radius="0.03"/>
+    </Shape>
+  </Transform>
+  
+  <CubicPositionInterpolator
+      DEF="TR1_MOVER"
+      keyValue="-.03 0 0,
+                -.2 0 0,
+                0 -.2 0,
+                -.2 0 0,
+                -.03 0 0"/>
+  <ROUTE_NO_EVENT
+      fromNode="FSM" fromField="tr1_timer"
+      toNode="TR1_MOVER" toField="set_fraction"/>
+  <ROUTE_NO_EVENT
+      fromNode="TR1_MOVER" fromField="value_changed"
+      toNode="TR1" toField="translation"/>
+  
+  <Transform
+      DEF="TR2">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor="1 .8 .1"
+            specularColor="1 1 1"/>
+      </Appearance>
+      <Sphere radius="0.03"/>
+    </Shape>
+  </Transform>
+  
+  <CubicPositionInterpolator
+      DEF="TR2_MOVER"
+      keyValue=".03 0 0,
+                .2 0 0,
+                0 .2 0,
+                .2 0 0,
+                .03 0 0"/>
+  <ROUTE_NO_EVENT
+      fromNode="FSM" fromField="tr2_timer"
+      toNode="TR2_MOVER" toField="set_fraction"/>
+  <ROUTE_NO_EVENT
+      fromNode="TR2_MOVER" fromField="value_changed"
+      toNode="TR2" toField="translation"/>
+  
+</Scene>

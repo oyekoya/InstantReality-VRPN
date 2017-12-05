@@ -1,0 +1,3 @@
+Build ZSpaceIO.sln in order to generate ZSpaceNode.iio
+
+Run test.x3d with the zSpace connected and zSpaceVRPNserver running (see https://support.zspace.com/entries/21611227).

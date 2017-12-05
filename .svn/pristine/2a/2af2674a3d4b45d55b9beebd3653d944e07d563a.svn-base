@@ -1,0 +1,169 @@
+IF(WIN32)
+cmake_minimum_required(VERSION 2.6.0)
+ENDIF(WIN32)
+PROJECT(Candy)
+
+# version 1.12
+SET( Candy_MAJOR_VERSION 1 )
+SET( Candy_MINOR_VERSION 12 )
+SET( Candy_FULL_VERSION ${Candy_MAJOR_VERSION}.${Candy_MINOR_VERSION} )
+
+# Set here already in case a special NSIS template needs to be used by cpack.
+SET( CONVERTED_H3D_ROOT "" )
+IF( EXISTS $ENV{H3D_ROOT} )
+  FILE( TO_CMAKE_PATH $ENV{H3D_ROOT} CONVERTED_H3D_ROOT )
+ENDIF( EXISTS $ENV{H3D_ROOT} )
+SET(CMAKE_MODULE_PATH  ${Candy_SOURCE_DIR}/modules ${CONVERTED_H3D_ROOT}/build/modules ${Candy_SOURCE_DIR}/../../H3DAPI/build/modules )
+INCLUDE( StripAndAddLibraryDirectories )
+
+
+#add all sources
+AUX_SOURCE_DIRECTORY(../src Candy_SRCS)
+
+# add all optional libraries to this variable
+SET(optionalLibs)
+
+# add all required libraries to this variable
+SET(requiredLibs)
+
+INCLUDE_DIRECTORIES( ../include )
+
+IF(WIN32)
+  SET(requiredLibs ${requiredLibs} )
+ENDIF(WIN32)
+
+#H3DUtil
+FIND_PACKAGE(H3DUtil REQUIRED)
+
+IF(H3DUTIL_FOUND)
+  INCLUDE_DIRECTORIES( ${H3DUTIL_INCLUDE_DIR} ) 
+  SET(requiredLibs ${requiredLibs} ${H3DUTIL_LIBRARIES} )
+ENDIF(H3DUTIL_FOUND)
+
+#HAPI
+FIND_PACKAGE(HAPI REQUIRED)
+
+IF(HAPI_FOUND)
+  INCLUDE_DIRECTORIES( ${HAPI_INCLUDE_DIR} ) 
+  SET(requiredLibs ${requiredLibs} ${HAPI_LIBRARIES} )
+ENDIF(HAPI_FOUND)
+
+#H3DAPI
+FIND_PACKAGE(H3DAPI REQUIRED)
+
+IF(H3DAPI_FOUND)
+  INCLUDE_DIRECTORIES( ${H3DAPI_INCLUDE_DIR} ) 
+  SET(requiredLibs ${requiredLibs} ${H3DAPI_LIBRARIES} )
+ENDIF(H3DAPI_FOUND)
+
+FIND_PACKAGE(Xerces)
+IF(XERCES_FOUND)
+  SET(HAVE_XERCES 1)
+  INCLUDE_DIRECTORIES( ${XERCES_INCLUDE_DIR} ) 
+  SET(optionalLibs ${optionalLibs} ${XERCES_LIBRARIES} )
+ENDIF(XERCES_FOUND)
+
+FIND_PACKAGE(Gadgeteer)
+IF(GADGETEER_FOUND)
+  SET(HAVE_GADGETEER 1)
+  INCLUDE_DIRECTORIES( ${GADGETEER_INCLUDE_DIR} ) 
+  SET(optionalLibs ${optionalLibs} ${GADGETEER_LIBRARIES} )
+ENDIF(GADGETEER_FOUND)
+
+FIND_PACKAGE(ARToolkit)
+IF(ARToolkit_FOUND)
+  SET(HAVE_ARTOOLKIT 1)
+  INCLUDE_DIRECTORIES( ${ARToolkit_INCLUDE_DIR} ) 
+  SET(optionalLibs ${optionalLibs} ${ARToolkit_LIBRARIES} )
+ENDIF(ARToolkit_FOUND)
+
+FIND_PACKAGE(VRPN)
+IF(VRPN_FOUND)
+  SET(HAVE_VRPN 1)
+  INCLUDE_DIRECTORIES( ${VRPN_INCLUDE_DIR} ) 
+  SET(optionalLibs ${optionalLibs} ${VRPN_LIBRARIES} )
+ENDIF(VRPN_FOUND)
+
+FIND_PACKAGE(Freenect)
+IF(Freenect_FOUND)
+  SET(HAVE_FREENECT 1)
+  INCLUDE_DIRECTORIES( ${Freenect_INCLUDE_DIR} ) 
+  SET(optionalLibs ${optionalLibs} ${Freenect_LIBRARIES} )
+ENDIF(Freenect_FOUND)
+
+FIND_PACKAGE(ISense)
+IF(ISense_FOUND)
+  SET(HAVE_ISENSE 1)
+  INCLUDE_DIRECTORIES( ${ISense_INCLUDE_DIR} ) 
+  SET(Candy_SRCS ${Candy_SRCS} ${ISense_INCLUDE_DIR}/isense.c )
+ENDIF(ISense_FOUND)
+
+# Candy shared library definition
+ADD_LIBRARY(Candy SHARED ${Candy_SRCS})
+
+
+OPTION(HVR_USE_THREADSAFE_FIELDS
+  "Use thread-safe fields in parts that interact with haptics threads."
+  OFF)
+
+
+# set the install directory to the Candy directory on Windows
+IF(WIN32) 
+ SET( CMAKE_INSTALL_PREFIX ${Candy_SOURCE_DIR}/..)
+ENDIF(WIN32)
+
+# make sure symbols are exported.
+SET( Candy_COMPILE_FLAGS "-DCANDY_EXPORTS" )
+
+# add the libraries needed for linking
+TARGET_LINK_LIBRARIES( Candy ${requiredLibs} ${optionalLibs} )
+
+# make the name of debug libraries end in _d.
+SET_TARGET_PROPERTIES( Candy PROPERTIES DEBUG_POSTFIX "_d" )
+
+# set the version of the library
+SET_TARGET_PROPERTIES( Candy PROPERTIES VERSION ${Candy_FULL_VERSION} )
+
+# change the name depending on compiler to be able to tell them apart
+# since they are not compatible with each other. 
+SET( TEMP_OUTPUT_POSTFIX "" )
+SET( Candy_LINK_FLAGS_DEBUG "" )
+IF(MSVC70 OR MSVC71)
+  SET_TARGET_PROPERTIES( Candy PROPERTIES OUTPUT_NAME Candy_vc7 )
+  SET( TEMP_OUTPUT_POSTFIX _vc7 )
+ELSEIF(MSVC80)
+  SET_TARGET_PROPERTIES( Candy PROPERTIES OUTPUT_NAME Candy_vc8 )
+  SET( TEMP_OUTPUT_POSTFIX _vc8 )
+  # remove some warnings about deprecated functions.
+  SET( Candy_COMPILE_FLAGS "${Candy_COMPILE_FLAGS} -D_CRT_SECURE_NO_DEPRECATE /Zc:wchar_t-" )
+ELSEIF(MSVC90)
+  SET_TARGET_PROPERTIES( Candy PROPERTIES OUTPUT_NAME Candy_vc9 )
+  SET( TEMP_OUTPUT_POSTFIX _vc9 )
+  # remove some warnings about deprecated functions.
+  SET( Candy_COMPILE_FLAGS "${Candy_COMPILE_FLAGS} -D_CRT_SECURE_NO_DEPRECATE /Zc:wchar_t- /MP" )
+ELSEIF(MSVC10)
+  SET_TARGET_PROPERTIES( Candy PROPERTIES OUTPUT_NAME Candy_vc10 )
+  SET( TEMP_OUTPUT_POSTFIX _vc10 )
+  # remove some warnings about deprecated functions.
+  SET( Candy_COMPILE_FLAGS "${Candy_COMPILE_FLAGS} -D_CRT_SECURE_NO_DEPRECATE /Zc:wchar_t- /MP" )
+ENDIF(MSVC70 OR MSVC71)
+
+SET_TARGET_PROPERTIES( Candy PROPERTIES COMPILE_FLAGS "${Candy_COMPILE_FLAGS}" )
+
+# autogenerate Candy.hh depending on the libraries available.
+CONFIGURE_FILE( ${Candy_SOURCE_DIR}/../include/Candy/Candy_cmake.hh ${Candy_SOURCE_DIR}/../include/Candy/Candy.hh )
+CONFIGURE_FILE( ${Candy_SOURCE_DIR}/../include/HVR/HVR_cmake.hh ${Candy_SOURCE_DIR}/../include/HVR/HVR.hh )
+
+INSTALL( TARGETS Candy
+         LIBRARY DESTINATION lib
+         RUNTIME DESTINATION bin
+         ARCHIVE DESTINATION lib )
+
+IF( NOT WIN32 )
+  INSTALL( DIRECTORY ../include/HVR
+           DESTINATION include 
+           PATTERN .svn EXCLUDE )
+  INSTALL( DIRECTORY ../include/Candy
+           DESTINATION include 
+           PATTERN .svn EXCLUDE )
+ENDIF( NOT WIN32 )

@@ -1,0 +1,171 @@
+#VRML V2.0 utf8
+
+DEF io IOSensor {
+  type "ZSpaceNode"
+  field SFString randMax "3"
+  eventOut SFVec3f headposition
+  eventOut SFRotation headrotation
+  eventOut SFVec3f handposition
+  eventOut SFRotation handrotation
+  eventOut SFBool button_0
+  eventOut SFBool button_1
+  eventOut SFBool button_2
+}
+
+NavigationInfo {
+	type [ "walk" "any" ]
+	interactionType "ray"
+	navigator [
+		DEF nav SteerNavigator {
+			inputRange -1, 1
+			zeroDeflectionTrans 0.0 0.0 0.0
+			zeroDeflectionRot   0.0 0.0 0.0
+			rotationSpeed 0.2, 0.2, 0.2
+		}
+	]
+}
+
+Shape {
+  geometry DEF text Text {
+    string [ "Head Pos: undef" "Head Rot: undef" "Hand Pos: undef" "Hand Rot: undef" "Button 0: undef" "Button 1: undef" "Button 2: undef" ]
+  }
+}
+DEF navmap Script {
+	field SFNode text USE text
+	field SFNode nav USE nav
+	field SFNode io USE io
+	eventIn SFVec3f headpos
+	eventIn SFRotation headrot
+	eventIn SFVec3f handpos
+	eventIn SFRotation handrot
+	eventIn SFBool button0
+	eventIn SFBool button1
+	eventIn SFBool button2
+	eventIn SFRotation wand_rotation_changed
+
+	eventOut SFFloat translation_x
+	eventOut SFFloat translation_y
+	eventOut SFFloat translation_z
+	eventOut SFVec3f translation_vector
+	eventOut SFRotation hand_rotation
+
+	url "javascript:
+
+	//--------------------
+	function headpos(value) 
+	{
+		text.string[0] = 'Head Pos: ' + value; 
+	}
+	function headrot(value) 
+	{
+		text.string[1] = 'Head Rot: ' + value; 
+	}
+	function handpos(value) 
+	{
+		text.string[2] = 'Hand Pos: ' + value; 
+	}
+	function handrot(value) 
+	{
+		text.string[3] = 'Hand Rot: ' + value; 
+	}
+	function button0(value) 
+	{
+		text.string[4] = 'Button 0: ' + value; 
+	}
+	function button1(value) 
+	{
+		text.string[5] = 'Button 1: ' + value; 
+		if (value)
+		{
+			hand_rotation = io.handrotation;
+			translation_vector = hand_rotation.multVec( SFVec3f( 0.0, 0.0, -0.3 ) );
+			translation_x = translation_vector.x;
+			translation_y = translation_vector.y;
+			translation_z = translation_vector.z;
+		}
+	}
+	function button2(value) 
+	{
+		text.string[6] = 'Button 2: ' + value; 
+		if (value)
+		{
+			hand_rotation = io.handrotation;
+			translation_vector = hand_rotation.multVec( SFVec3f( 0.0, 0.0, 0.3 ) );
+			translation_x = translation_vector.x;
+			translation_y = translation_vector.y;
+			translation_z = translation_vector.z;
+		}
+	}
+
+	"
+}
+
+ROUTE io.headposition TO navmap.headpos
+ROUTE io.headrotation TO navmap.headrot
+ROUTE io.handposition TO navmap.handpos
+ROUTE io.handrotation TO navmap.handrot
+ROUTE io.button_0 TO navmap.button0
+ROUTE io.button_1 TO navmap.button1
+ROUTE io.button_2 TO navmap.button2
+
+ROUTE navmap.translation_x TO nav.set_xTranslation
+ROUTE navmap.translation_y TO nav.set_yTranslation
+ROUTE navmap.translation_z TO nav.set_zTranslation
+
+Viewspace {
+#	applyEyeTransform TRUE
+#	invert TRUE
+	scaleToScene TRUE
+	children [
+		DEF userBodyTrans Transform {
+			children [
+				DEF userBody UserBody {
+					children [
+						Transform {
+							translation     0 0 0
+							rotation 1 0 0 -1.57079632679
+#							scale .05 .05 .05
+							children [
+								Transform {
+									translation 0 1.1 0
+									children DEF CYL Shape {
+										appearance Appearance {
+											material Material {
+												diffuseColor 1 1 1
+												emissiveColor .1 .1 .1
+											}
+										}
+										geometry Cylinder {
+											height 2
+											radius .002
+										}
+									}
+								}
+								Transform {
+									translation 0 0.1 0
+									children Shape {
+										appearance Appearance {
+											material Material {
+												diffuseColor .2 .2 1
+												emissiveColor .1 .1 .1
+												specularColor .3 .3 .3
+											}
+										}
+										geometry Cone {
+											height 0.1
+											bottomRadius 0.01
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	]
+}
+
+ROUTE io.button_0 TO userBody.hot
+ROUTE io.handrotation TO userBodyTrans.set_rotation
+ROUTE io.handposition TO userBodyTrans.set_translation

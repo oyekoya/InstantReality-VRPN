@@ -1,0 +1,113 @@
+/**
+
+Copyright 2007-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+*/
+
+#include <HVR/MarkerTracker.hh>
+
+#ifdef HAVE_ARTOOLKIT
+
+#include <HVR/ARToolkit.hh>
+
+#include <Candy/Debug.hh>
+
+using namespace HVR;
+using namespace H3D;
+
+H3DNodeDatabase MarkerTracker::database
+( "MarkerTracker",
+  &(newInstance<MarkerTracker>),
+  typeid( MarkerTracker ),
+  &HVRTrackerNode::database );
+
+namespace MarkerTrackerInternals {
+  FIELDDB_ELEMENT( MarkerTracker, markerId, INPUT_OUTPUT );
+}
+
+MarkerTracker::MarkerTracker
+( Inst< SFNode > _metadata,
+  Inst< EventSink > _eventSink,
+  Inst< TSSField(SFMatrix4f) > _rawMatrix,
+  Inst< TSSField(SFVec3f) > _rawPosition,
+  Inst< TSSField(SFRotation) > _rawOrientation,
+  Inst< CalibratedMatrix > _trackerMatrix,
+  Inst< CalibratedPosition > _trackerPosition,
+  Inst< CalibratedOrientation > _trackerOrientation,
+  Inst< SFMatrix4f > _positionCalibration,
+  Inst< SFRotation > _orientationCalibration,
+  
+  Inst< SFInt32 > markerId )
+  
+  : HVRTrackerNode( _metadata,
+                    _eventSink,
+                    _rawMatrix,
+                    _rawPosition,
+                    _rawOrientation,
+                    _trackerMatrix,
+                    _trackerPosition,
+                    _trackerOrientation,
+                    _positionCalibration,
+                    _orientationCalibration ),
+    PeriodicThread(NORMAL_PRIORITY,205),
+    markerId( new SFInt32 ) {
+  
+  type_name = "MarkerTracker";
+  database.initFields( this );
+  
+}
+
+MarkerTracker::~MarkerTracker(){}
+
+void MarkerTracker::initialize() {
+  marker_id = markerId->getValue();
+  has_matrix = false;
+  
+  asynchronousCallback( MarkerTracker::callback, this );
+}
+
+MarkerTracker::CallbackCode MarkerTracker::callback(void *data){
+  MarkerTracker *tracker = static_cast<MarkerTracker*>(data);
+  tracker->update();
+  return CALLBACK_CONTINUE;
+}
+
+void MarkerTracker::update(){
+  
+  ARToolkit * ART = ARToolkit::getActive();
+  if( ART == NULL ){
+    CANDY_RUNTIME_WARNING_ONCE("MarkerTracker","No ARToolkit node found.");
+    return;
+  }
+  CANDY_RUNTIME_WARNING_RESET("MarkerTracker","No ARToolkit node found.");
+  
+  if( !ART->getMarker( marker_id, matrix, has_matrix ) ){
+    has_matrix = false;
+    return;
+  }
+  
+  has_matrix = true;
+  updateRawMatrix(matrix);
+}
+
+#endif
+

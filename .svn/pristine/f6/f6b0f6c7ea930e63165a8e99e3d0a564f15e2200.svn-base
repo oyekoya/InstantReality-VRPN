@@ -1,0 +1,147 @@
+/**
+
+Copyright 2003-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+#include <HVR/VRPNTracker.hh>
+
+#include <Candy/Debug.hh>
+#include <H3D/Scene.h>
+
+using namespace H3D;
+using namespace HVR;
+
+H3D::H3DNodeDatabase VRPNTracker::database
+( "VRPNTracker",
+  &(newInstance<VRPNTracker>),
+  typeid( VRPNTracker ),
+  &HVRTrackerNode::database );
+
+namespace TransferFunctionInternals {
+  FIELDDB_ELEMENT( VRPNTracker, connectionString, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( VRPNTracker, sensor, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( VRPNTracker, mainButton, INPUT_OUTPUT);
+  FIELDDB_ELEMENT( VRPNTracker, secondaryButton, INPUT_OUTPUT);
+}
+
+VRPNTracker::VRPNTracker
+( Inst< SFNode > _metadata,
+  Inst< EventSink > _eventSink,
+  Inst< TSSField(SFMatrix4f) > _rawMatrix,
+  Inst< TSSField(SFVec3f) > _rawPosition,
+  Inst< TSSField(SFRotation) > _rawOrientation,
+  Inst< CalibratedMatrix > _trackerMatrix,
+  Inst< CalibratedPosition > _trackerPosition,
+  Inst< CalibratedOrientation > _trackerOrientation,
+  Inst< SFMatrix4f > _positionCalibration,
+  Inst< SFRotation > _orientationCalibration,
+  
+  Inst< SFString > _connectionString,
+  Inst< SFInt32 > _sensor,
+  Inst< Collector > _collector,
+  Inst< SFBool > _mainButton,
+  Inst< SFBool  > _secondaryButton)
+  
+  : HVRTrackerNode( _metadata,
+                    _eventSink,
+                    _rawMatrix,
+                    _rawPosition,
+                    _rawOrientation,
+                    _trackerMatrix,
+                    _trackerPosition,
+                    _trackerOrientation,
+                    _positionCalibration,
+                    _orientationCalibration ),
+    connectionString( _connectionString ),
+    sensor( _sensor ),
+    collector( _collector ),
+	mainButton(_mainButton),
+	secondaryButton(_secondaryButton),
+    tracker(NULL),
+	button(NULL) {
+  
+  type_name = "VRPNTracker";
+  database.initFields(this);
+  
+  collector->setOwner(this);
+  Scene::time->route(collector);
+  collector->route(Scene::eventSink);
+}
+
+VRPNTracker::~VRPNTracker(){
+  if( tracker != NULL ){
+    delete tracker; }
+}
+
+void VRPNTracker::initialize(){
+  tracker = new vrpn_Tracker_Remote(connectionString->getValue().c_str());
+  button  = new vrpn_Button_Remote (connectionString->getValue().c_str());
+
+  tracker->register_change_handler(this,VRPNTracker::handle_tracker);
+  button->register_change_handler(this, VRPNTracker::handle_button);
+}
+
+#ifndef NDEBUG
+int vrpntracker_collector_call_test = 0;
+#define COLLECT_CALL_INCREMENT (vrpntracker_collector_call_test++)
+#define COLLECT_CALL_DECREMENT (vrpntracker_collector_call_test--)
+#define COLLECT_CALL_TEST (assert(vrpntracker_collector_call_test == 1))
+#else
+#define COLLECT_CALL_INCREMENT //
+#define COLLECT_CALL_DECREMENT //
+#define COLLECT_CALL_TEST //
+#endif
+
+void VRPNTracker::Collector::update(){
+  VRPNTracker *tracker = static_cast<VRPNTracker*>(getOwner());
+  COLLECT_CALL_INCREMENT;
+  tracker->tracker->mainloop();
+  tracker->button->mainloop();
+  COLLECT_CALL_DECREMENT;
+}
+
+void VRPN_CALLBACK VRPNTracker::handle_button(void *userdata, const vrpn_BUTTONCB b){
+
+	VRPNTracker *tracker = static_cast<VRPNTracker*>(userdata);
+	if(b.button == 0)
+	{
+		tracker->mainButton->setValue(b.state);
+	}
+
+	else
+	{
+		tracker->secondaryButton->setValue(b.state);
+	}
+}
+
+void VRPN_CALLBACK VRPNTracker::handle_tracker(void *data,const vrpn_TRACKERCB info){
+  COLLECT_CALL_TEST;
+  
+  VRPNTracker *tracker = static_cast<VRPNTracker*>(data);
+  if( info.sensor == tracker->sensor->getValue() ){
+    
+    Vec3f P( info.pos[0], info.pos[1], info.pos[2] );
+    Rotation R(Quaternion(info.quat[0],info.quat[1],info.quat[2],info.quat[3]));
+    
+    tracker->updateRawPositionOrientation(P,R);
+  }
+}

@@ -1,0 +1,117 @@
+/**
+   (c)2005-2009 Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#ifndef _CANDY_MOUSEHAPTICSDEVICE_HH_
+#define _CANDY_MOUSEHAPTICSDEVICE_HH_
+
+#include <Candy/Candy.hh>
+
+#include <H3D/H3DHapticsDevice.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3D/FieldTemplates.h>
+#include <H3D/TraverseInfo.h>
+#include <H3D/MouseSensor.h>
+
+#include <HAPI/HAPIHapticsDevice.h>
+
+#define FRAME_TIME_VALUES              12
+#define FRAME_TIME_VALUES_LOW_REMOVE    3
+#define FRAME_TIME_VALUES_HIGH_REMOVE   3
+
+/// The Candy package
+namespace Candy {
+  
+  /**
+     A mouse driven haptic device
+  */
+  class CANDY_API MouseHapticsDevice
+    : public H3D::H3DHapticsDevice {
+
+    class CANDY_API Device
+      : public HAPI::HAPIHapticsDevice {
+    public:
+      inline Device() :
+        button(false),
+        op(H3D::Vec3d(0,0,0)),
+        cp(H3D::Vec3d(0,0,0)),
+        np(H3D::Vec3d(0,0,0)),
+        oR(H3D::Rotationd()),
+        cR(H3D::Rotationd()),
+        nR(H3D::Rotationd()),
+        ot(0), frame_time_frame(0),
+        frame_time(FRAME_TIME_VALUES,0.01) {}
+      void updateDeviceValues( DeviceValues &dv, HAPI::HAPITime dt );
+      void sendOutput( DeviceOutput &dv, HAPI::HAPITime dt );
+      inline bool initHapticsDevice(int f = 1000){ return true; }
+      inline bool releaseHapticsDevice(){ return true; }
+      void setValues(H3D::Vec3d pos, H3D::Rotationd rot,
+                     bool button);
+    private:
+      
+      static HapticsDeviceRegistration device_registration;
+      
+      H3D::Vec3d op, cp, np, velocity;
+      H3D::Rotationd oR, cR, nR;
+      HAPI::HAPITime ot;
+      
+      double time_per_frame;
+      std::vector<double> frame_time;
+      int frame_time_frame;
+      
+      bool button;
+      H3DUtil::MutexLock lock;
+    };
+
+  public:
+    MouseHapticsDevice();
+    
+    auto_ptr< H3D::SFFloat >     zScale;
+    auto_ptr< H3D::SFRotation >  orientation;
+    
+    void preRender();
+    
+    static H3D::H3DNodeDatabase database;
+    
+  private:
+    
+    Device *device;
+    
+    H3D::AutoRef< H3D::MouseSensor >  mouse;
+    
+    struct CANDY_API Depth
+      : H3D::TypedField< H3D::SFFloat,
+                         H3D::Types< H3D::SFBool,
+                                     H3D::SFFloat,
+                                     H3D::SFVec2f > > {
+      inline Depth() { value = 0; }
+      void update() {
+        if( static_cast<H3D::SFBool*>(routes_in[0])->getValue() ){
+          value +=
+            static_cast<H3D::SFFloat*>(routes_in[1])->getValue() *
+            static_cast<H3D::SFVec2f*>(routes_in[2])->getValue().y; }
+      }
+    };
+    auto_ptr< Depth > depth;
+  };
+}
+
+#endif

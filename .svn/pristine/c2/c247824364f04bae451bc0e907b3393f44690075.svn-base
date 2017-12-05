@@ -1,0 +1,372 @@
+/**
+   Copyright 2006-2008, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#ifndef _CANDY_FINITESTATEMACHINE_HH_
+#define _CANDY_FINITESTATEMACHINE_HH_
+
+#include <Candy/Candy.hh>
+
+#ifdef HAVE_XERCES
+
+#include <Candy/Debug.hh>
+
+#include <H3D/X3DChildNode.h>
+#include <H3D/X3DUrlObject.h>
+#include <H3D/H3DDynamicFieldsObject.h>
+
+#include <H3D/SFString.h>
+#include <H3D/MFString.h>
+#include <H3D/SFInt32.h>
+#include <H3D/MFInt32.h>
+#include <H3D/SFBool.h>
+#include <H3D/SFFloat.h>
+#include <H3D/SFTime.h>
+
+#include <xercesc/sax/HandlerBase.hpp>
+
+
+XERCES_CPP_NAMESPACE_BEGIN
+class SAXParser;
+XERCES_CPP_NAMESPACE_END
+
+namespace Candy {
+  
+  XERCES_CPP_NAMESPACE_USE
+  
+  /**\ingroup expert
+     The FiniteStateMachine node provides state machine functionality
+     through programmable states and transitions.
+     
+     A state machine takes care of states in anything from compiler
+     programs, file readers and client/server systems to games and
+     applications. A state can be, for example, 'showing menu',
+     'running game' or 'game over'. By using a central state machine
+     each functionality of the game or application can be individually
+     programmed in separate scripts or systems and by simply reading
+     of the state value, or even recieve events from the state
+     machine, each script can know what to do, if is should be
+     inactive or start doing something.
+     
+     This node reads a specified XML file with state and transition
+     specifications. Each state is given a specific number id and a
+     string name. This state id or name can be routed from the stateId
+     and stateName fields. If the state machine is non-deterministic
+     multiple states may be active, in which case the full list of ids
+     and names can be routed from the stateIds and stateNames fields.
+     
+     \section syntax XML syntax
+     
+     Here is a reference manual over the XML syntax of the
+     configuration file read by this node. A strict syntax description
+     can be found in the DTD file.
+     
+     - \c automation, the root, containing instances of \c state and
+       \c transition
+     - \c state, specifies a state, requires an \c id or \c name
+       attribute. May contain one or several \c event tags
+      - Attributes:
+       - \c type, the type of the state. One of: normal (default), start
+         (the initial state) or accept (final state)
+       - \c id, a numerical identification
+       - \c name, a string identification
+     - \c transition, a (conditioned) transition from one state to
+       another. Should contain a condition and may contain an \c
+       event. If there is no condition, this transition will always be
+       active
+      - Attributes:
+       - \c from, the id or name of the state this transition is from
+       - \c to, the id or name of the state this transition is to
+     - \c event, an event producing some output, must have at least \c
+       field and \c type, and either \c field2 or \c value specified
+      - Attributes:
+       - \c trigger, the trigger that activates the output. One of:
+         entry (activated when the state is entered, default), exit
+         (triggered when the state is left), start (triggered if the
+         state is born), or accept (triggered if the state dies)
+       - \c field, the output field that is set to a value by this
+         event
+       - \c field2, the value of this field is copied to the output
+         field, if present
+       - \c value, this value is copied to the output field, if field2
+         is not specified
+       - \c type, the type of the output (and input) field(s). One of:
+         "string", "int", "float", "double" or "bool"
+     
+     \subsection cond Conditions
+     
+     - Boolean operations, have no attributes. Must contain other
+       conditional tags
+      - Tags: \c and, \c or, \c xor, \c not
+     - Field comparison, compares two input fields or one field with a
+       constant value
+      - Tags: \c eq (equal), \c leq (less or equal), \c geq (greater
+        or equal), \c gt (greater than), \c lt (less than)
+      - Attributes:
+       - \c type, the type of the field(s) to be compared. One of:
+         string, int, float, double or bool
+       - \c field, the field to compare
+       - \c field2, the field to compare with (optional)
+       - \c value, the value to compare with (optional)
+     - \c timer, provides a delay controlled condition
+      - Attributes:
+       - \c delay, the delay before this condition becomes true
+       - \c field, an \c SFFloat field with output value between zero
+         and one over the delay of this timer
+     
+     \beginX3D
+     \field    url           \n1 MFString  \n2 "" \n3 \eol
+     \eventOut stateId       \n1 SFInt32   \n2  \n3 \eol
+     \eventOut stateIds      \n1 MFInt32   \n2  \n3 \eol
+     \eventOut stateName     \n1 SFString  \n2  \n3 \eol
+     \eventOut stateNames    \n1 MFString  \n2  \n3 \eol
+     \field    deterministic \n1 SFBool    \n2 True \n3
+      In a deterministic state machine only one state is active at a
+      time, but in non-deterministic machines every valid state is
+      active at the same time. \eol
+     \field    persistent    \n1 SFBool    \n2 True \n3
+      If the state machine is persistent, states will not die when no
+      transition is available. \eol
+     \eventIn  (varying)     \n1 <varying> \n2 ""|0|false \n3
+      Every event type connected to a state will provide an outgoing
+      field. \eol
+     \eventOut (varying)     \n1 <varying> \n2 ""|0|false \n3
+      Every transition condition will provide at least one incoming
+      field. Multiple transitions can also be controlled from the same
+      fields. \eol
+     \endX3D
+  */
+  class CANDY_API FiniteStateMachine
+    : public H3D::X3DChildNode,
+      public H3D::X3DUrlObject,
+      public H3D::H3DDynamicFieldsObject,
+      public HandlerBase {
+    
+  protected:
+    
+    struct StateIds
+      : H3D::TypedField< H3D::MFInt32,
+                         H3D::Types< H3D::SFBool,   // Deterministic
+                                     H3D::SFBool,   // Persistent
+                                     H3D::SFTime > > {
+      virtual void update();
+    };
+    
+    struct StateId
+      : H3D::TypedField< H3D::SFInt32,
+                         H3D::MFInt32 > {
+      inline virtual void update(){
+        value = static_cast<H3D::MFInt32*>
+          (routes_in[0])->getValueByIndex(0); }
+    };
+    
+    struct StateNames
+      : H3D::TypedField< H3D::MFString,
+                         H3D::MFInt32 > {
+      virtual void update();
+    };
+    friend struct StateNames;
+    
+    struct StateName
+      : H3D::TypedField< H3D::SFString,
+                         H3D::MFString > {
+      inline virtual void update(){
+        value = static_cast<H3D::MFString*>
+          (routes_in[0])->getValueByIndex(0); }
+    };
+    
+  public:
+    
+    FiniteStateMachine( H3D::Inst< H3D::SFNode   > _metadata     = 0,
+                        H3D::Inst< H3D::MFString > _url          = 0,
+                        
+                        H3D::Inst< StateId       > stateId       = 0,
+                        H3D::Inst< StateIds      > stateIds      = 0,
+                        H3D::Inst< StateName     > stateName     = 0,
+                        H3D::Inst< StateNames    > stateNames    = 0,
+                        
+                        H3D::Inst< H3D::SFBool   > deterministic = 0,
+                        H3D::Inst< H3D::SFBool   > persistent    = 0 );
+    
+    std::auto_ptr< H3D::SFInt32  > stateId;
+    std::auto_ptr< H3D::MFInt32  > stateIds;
+    std::auto_ptr< H3D::SFString > stateName;
+    std::auto_ptr< H3D::MFString > stateNames;
+    
+    std::auto_ptr< H3D::SFBool   > deterministic;
+    std::auto_ptr< H3D::SFBool   > persistent;
+    
+    void initialize();
+    
+    static H3D::H3DNodeDatabase database;
+
+  private:
+    
+    /** Condition type. */
+    struct condition_t {
+      virtual ~condition_t(){}
+      virtual void initialize(double t) = 0;
+      virtual bool evaluate(double t) = 0;
+    };
+    
+    struct multi_condition_t : condition_t {
+      ~multi_condition_t();
+      void initialize(double t){
+        for( std::vector<condition_t*>::iterator i
+               = conditions.begin() ;
+             i != conditions.end() ; i++ ){
+          (*i)->initialize(t); }
+      }
+      std::vector<condition_t*> conditions;
+    };
+    
+    /** Condition type calculating AND operation. */
+    struct and_condition_t : multi_condition_t {
+      bool evaluate(double t);
+    };
+    
+    /** Condition type calculating OR operation. */
+    struct or_condition_t : multi_condition_t {
+      bool evaluate(double t);
+    };
+    
+    /** Condition type calculating EXCLUSIVE OR operation. */
+    struct xor_condition_t : multi_condition_t {
+      bool evaluate(double t);
+    };
+    
+    /** Condition type calculating NOT operation. */
+    struct not_condition_t : multi_condition_t {
+      inline bool evaluate(double t){
+        return conditions.size() ?
+          !conditions[0]->evaluate(t) : false; }
+    };
+    
+    /** Condition type comparing fields or field and value. */
+    template< class FIELD, class T >
+    struct cmp_condition_t : condition_t {
+      cmp_condition_t() : field(0), field2(0) {}
+      void initialize(double t){}
+      virtual bool evaluate(double t) = 0;
+      FIELD *field;
+      FIELD *field2;
+      T value;
+    };
+    
+    /** Condition type comparing fields or field and value. */
+    template< class FIELD, class T, class FUNC >
+    struct cmp_func_condition_t : cmp_condition_t<FIELD,T> {
+      bool evaluate(double t){
+        return FUNC()( this->field->getValue(),
+                       ( this->field2 ?
+                         this->field2->getValue() :
+                         this->value ) ); }
+    };
+    
+    struct timer_t : condition_t {
+      void initialize(double t){ start = t; }
+      bool evaluate(double t);
+      double start;
+      double delay;
+      H3D::SFFloat *field;
+    };
+    
+    /** Event trigger types. */
+    enum event_type_t {
+      EVENT_START,
+      EVENT_ENTRY,
+      EVENT_EXIT,
+      EVENT_ACCEPT
+    };
+    
+    /** An event. */
+    struct event_t {
+      virtual void execute() = 0;
+      event_type_t type;
+    };
+    
+    template< class FIELD, class T >
+    struct event_value_t : event_t {
+      event_value_t() : field(0), field2(0) {}
+      inline void execute(){
+        CANDY_DEBUG_LOG_I("FSM: event( "
+                          << (field->getName()) << " = "
+                          << (field2?field2->getValue():value) << " )");
+        field->setValue( field2 ? field2->getValue() : value ); }
+      FIELD *field;
+      FIELD *field2;
+      T value;
+    };
+    
+    /** Conditional transition between two states. */
+    struct transition_t {
+      transition_t() : condition(0) {}
+      inline ~transition_t(){ delete condition; }
+      int target_id;
+      condition_t *condition;
+      std::vector< event_t* > events;
+    };
+    
+    /** A state. */
+    struct state_t {
+      ~state_t();
+      std::string name;
+      std::vector< transition_t* > transitions;
+      std::vector< event_t* > events;
+      bool accept;
+    };
+    
+    /** The state list type. */
+    typedef std::map< int, state_t > states_t;
+    
+    /** The states of this state machine. */
+    states_t states;
+    
+    /** Starting states. */
+    std::vector<int> start_states;
+    
+    std::map<std::string,int> state_ids;
+    std::map<int,std::string> state_names;
+    
+  private:
+    
+    state_t *parse_state;
+    transition_t *parse_transition;
+    std::stack<multi_condition_t*> parse_condition;
+    
+    void startDocument();
+    
+    void startElement( const XMLCh* const name,
+                       AttributeList& attributes );
+    
+    void characters( const XMLCh* const chars,
+                     const unsigned int length );
+    
+    void endElement( const XMLCh* const name );
+    
+    void endDocument();
+    
+    SAXParser *parser;
+  };
+
+}
+
+#endif
+#endif

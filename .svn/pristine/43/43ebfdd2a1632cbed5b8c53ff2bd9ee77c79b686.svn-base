@@ -1,0 +1,64 @@
+/**
+   Copyright 2005, Karljohan Lundin
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#ifndef _CANDY_CAPTURE_HH_
+#define _CANDY_CAPTURE_HH_
+
+#include <Candy/Candy.hh>
+
+#include <H3D/X3DChildNode.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3D/FieldTemplates.h>
+#include <H3D/TraverseInfo.h>
+
+#include <H3D/SFString.h>
+#include <H3D/SFInt32.h>
+#include <H3D/SFBool.h>
+
+
+/// The Candy package
+namespace Candy {
+  
+  /**
+     This node writes the frame buffer to files, that can be used to
+     build a movie.
+  */
+  class CANDY_API Capture
+    : public H3D::X3DChildNode {
+  public:
+    Capture();
+    
+    auto_ptr< H3D::SFString >     nameBase;
+    auto_ptr< H3D::SFInt32  >     frameRate;
+    auto_ptr< H3D::SFInt32  >     frame;
+    auto_ptr< H3D::SFBool   >     capture;
+    
+    void traverseSG(H3D::TraverseInfo &ti);
+    
+    static H3D::H3DNodeDatabase database;
+    
+  private:
+    double frame_time;
+  };
+}
+
+#endif

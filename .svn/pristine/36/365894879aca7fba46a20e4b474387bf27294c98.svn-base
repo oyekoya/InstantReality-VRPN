@@ -1,0 +1,81 @@
+/**
+
+Copyright 2007-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _HVR_GADGETEER_HH_
+#define _HVR_GADGETEER_HH_
+
+#include <HVR/HVR.hh>
+
+#ifdef HAVE_GADGETEER
+    
+#include <H3D/X3DChildNode.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3D/X3DBindableNode.h>
+
+#include <H3D/MFString.h>
+
+#include <vrj/Kernel/Kernel.h>
+#include <gadget/Type/PositionInterface.h>
+
+namespace HVR {
+
+  /**
+     Gadgeteer is a bindable node that takes care of all communication
+     with the Gadgeteer. It is used much like a singleton, where one
+     instance is created at initialization of the application and
+     subsequently used by any other part of this bridge. One and only
+     one Gadgeteer node is required.
+  */
+  class HVR_API Gadgeteer
+    : public H3D::X3DBindableNode {
+  
+  public:
+    /** Initializes local members */
+    Gadgeteer( H3D::Inst< H3D::MFString > _configFile = 0 );
+
+    /** Destructor */
+    ~Gadgeteer();
+    
+    /** Get the top of the bindable stack for this node. */
+    static inline Gadgeteer *getActive() {
+      return static_cast< Gadgeteer* >
+        ( X3DBindableNode::getActive( "Gadgeteer" ) );
+    }
+    
+    static H3D::H3DNodeDatabase database;
+    
+    void initialize();
+    
+    void traverseSG( H3D::TraverseInfo &ti );
+    
+    std::auto_ptr< H3D::MFString > configFile;
+    
+  protected:
+    vrj::Kernel *kernel;
+  };
+}
+
+#endif
+#endif

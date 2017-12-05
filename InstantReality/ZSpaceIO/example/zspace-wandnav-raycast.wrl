@@ -1,0 +1,160 @@
+#X3D V3.0 utf8
+
+
+DEF iowand IOSensor {
+  type "ZSpaceNode"
+  field SFString randMax "3"
+  eventOut SFVec3f handposition
+  eventOut SFRotation handrotation
+  eventOut SFBool button_0
+  eventOut SFBool button_1
+  eventOut SFBool button_2
+}
+
+NavigationInfo {
+	type [ "walk" "any" ]
+	interactionType "ray"
+	navigator [
+		DEF nav SteerNavigator {
+			inputRange -1, 1
+			zeroDeflectionTrans 0.0 0.0 0.0
+			zeroDeflectionRot   0.0 0.0 0.0
+			rotationSpeed 0.2, 0.2, 0.2
+		}
+	]
+}
+
+DEF navmap Script {
+	eventIn SFBool button_press_0
+	eventIn SFBool button_press_1
+	eventIn SFBool button_press_2
+	eventIn SFRotation wand_rotation_changed
+
+	eventOut SFFloat y_rot
+	eventOut SFFloat translation_x
+	eventOut SFFloat translation_y
+	eventOut SFFloat translation_z
+	eventOut SFVec3f translation_vector
+	eventOut SFRotation wand_rotation_noroll
+
+	field SFNode nav USE nav
+	field SFNode iowand USE iowand
+
+	url [ "javascript:
+
+		y_rot = 0.0;
+
+		function button_press_0( value, time )
+		{
+		}
+		function button_press_1( value, time )
+		{
+			if( value )
+				nav.message = 'nextNavMode';
+		}
+		function button_press_2( value, time )
+		{
+			translation_x = 0.0;
+			translation_y = 0.0;
+			translation_z = 0.0;
+			y_rot = 0.0;
+			if( value )
+			{
+				wand_rotation_noroll = iowand.handrotation;
+				y_rot = wand_rotation_noroll.y;
+				wand_rotation_noroll.z = 0.0;
+				translation_vector = wand_rotation_noroll.multVec( SFVec3f( 0.0, 0.0, -2.0 ) );
+				translation_x = translation_vector.x;
+				translation_y = translation_vector.y;
+				translation_z = translation_vector.z;
+			}
+		}
+
+		/*function wand_rotation_changed( value, time )
+		{
+			translation_x = 0.0;
+			translation_y = 0.0;
+			translation_z = 0.0;
+			if( value )
+			{
+				wand_rotation_noroll = iowand.handrotation;
+				wand_rotation_noroll.z = 0.0;
+				translation_vector = wand_rotation_noroll.multVec( SFVec3f( 0.0, 0.0, -2.0 ) );
+				translation_x = translation_vector.x;
+				translation_y = translation_vector.y;
+				translation_z = translation_vector.z;
+			}
+		}*/
+
+	"
+	]
+}
+
+ROUTE iowand.button_0 TO navmap.button_press_0
+ROUTE iowand.button_1 TO navmap.button_press_1
+ROUTE iowand.button_2 TO navmap.button_press_2
+ROUTE iowand.handrotation TO navmap.wand_rotation_changed
+
+ROUTE navmap.y_rot TO nav.set_yRotation
+ROUTE navmap.translation_x TO nav.set_xTranslation
+ROUTE navmap.translation_y TO nav.set_yTranslation
+ROUTE navmap.translation_z TO nav.set_zTranslation
+
+Viewspace {
+#	applyEyeTransform TRUE
+#	invert TRUE
+	scaleToScene TRUE
+	children [
+		DEF userBodyTrans Transform {
+			children [
+				DEF userBody UserBody {
+					children [
+						Transform {
+							translation     0 0 0
+							rotation 1 0 0 -1.57079632679
+#							scale .05 .05 .05
+							children [
+								Transform {
+									translation 0 1.1 0
+									children DEF CYL Shape {
+										appearance Appearance {
+											material Material {
+												diffuseColor 1 1 1
+												emissiveColor .1 .1 .1
+											}
+										}
+										geometry Cylinder {
+											height 2
+											radius .002
+										}
+									}
+								}
+								Transform {
+									translation 0 0.1 0
+									children Shape {
+										appearance Appearance {
+											material Material {
+												diffuseColor .2 .2 1
+												emissiveColor .1 .1 .1
+												specularColor .3 .3 .3
+											}
+										}
+										geometry Cone {
+											height 0.1
+											bottomRadius 0.01
+										}
+									}
+								}
+							]
+						}
+					]
+				}
+			]
+		}
+	]
+}
+
+ROUTE iowand.button_0 TO userBody.hot
+ROUTE iowand.handrotation TO userBodyTrans.set_rotation
+ROUTE iowand.handposition TO userBodyTrans.set_translation
+

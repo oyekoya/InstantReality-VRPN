@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Group>
+  
+  <PythonScript url="urn:candy:python/AutoLoadSO.py"/>
+  <PythonScript url="urn:candy:python/CorrectViewpoint.py"/>
+  
+  <StereoInfo/>
+  
+  <SMViewpoint
+      screenLowerLeft="-0.26 -0.15 -.1"
+      screenUpperRight="+0.26 0.15 -.1"
+      DEF="VP"/>
+  
+  <TimeSensor
+      DEF="TIME"
+      cycleInterval="10"
+      startTime="0"
+      loop="true" />
+  
+  <OrientationInterpolator
+      DEF="H-INT"
+      key="0 .25 .5 .75 1"
+      keyValue="0 1 0 0
+                0 1 0 -0.78
+                0 1 0 0
+                0 1 0 0.78
+                0 1 0 0" />
+  
+  <ROUTE fromNode="TIME" fromField="fraction_changed"
+         toNode="H-INT" toField="set_fraction" />
+  <ROUTE fromNode="H-INT" fromField="value_changed"
+         toNode="VP" toField="headOrientation" />
+  
+  <PositionInterpolator
+      DEF="P-INT"
+      key="0 .25 .5 .75 1"
+      keyValue="0.0 0.0 0.5,
+                -.3 0.0 0.5,
+                0.0 0.0 0.5,
+                0.3 0.0 0.5,
+                0.0 0.0 0.5" />
+  
+  <ROUTE fromNode="TIME" fromField="fraction_changed"
+         toNode="P-INT" toField="set_fraction" />
+  <ROUTE fromNode="P-INT" fromField="value_changed"
+         toNode="VP" toField="position" />
+
+  
+  <Background
+      skyColor="0.2 0.2 0.2"/>
+  
+  <Transform translation="0 0 0">
+    <Shape>
+      <Appearance>
+        <Material />
+      </Appearance>
+      <Box
+          size="0.05 0.05 0.05" />
+    </Shape>
+  </Transform>
+  
+  <Transform translation="0.1 0 0">
+    <Shape DEF="XYZ">
+      <Appearance>
+        <Material />
+      </Appearance>
+      <Box
+          size="0.02 0.02 0.02" />
+    </Shape>
+  </Transform>
+  
+  <Transform translation="0 0.1 0">
+    <Shape USE="XYZ"/>
+  </Transform>
+  
+  <Transform translation="0 0 0.1">
+    <Shape USE="XYZ"/>
+  </Transform>
+  
+</Group>
+
+

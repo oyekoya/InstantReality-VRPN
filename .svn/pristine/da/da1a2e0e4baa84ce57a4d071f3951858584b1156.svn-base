@@ -1,0 +1,41 @@
+/**
+   Copyright 2009, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#include <Candy/Candy.hh>
+#include <string.h>
+#include <sstream>
+#define HAVE_VRPN 1
+
+H3D::LibraryInfo getLibraryInfo() {
+  H3D::LibraryInfo r = H3D::LibraryInfo::createEmptyInfo();
+  
+  std::stringstream s;
+  s << CANDY_MAJOR_VERSION << "."
+    << CANDY_MINOR_VERSION;
+  
+  strcpy( r.name, "Candy" );
+  strcpy( r.version, s.str().c_str() );
+  strcpy( r.developer, "Karljohan Lundin Palmerius" );
+  strcpy( r.developer_web, "http://staffwww.itn.liu.se/~karlu" );
+  strcpy( r.info, "This is the Candy package, a collection of tools and nodes for H3D API." );
+  return r;
+}

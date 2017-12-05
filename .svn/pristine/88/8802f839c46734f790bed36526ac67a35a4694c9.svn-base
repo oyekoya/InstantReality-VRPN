@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">
+<X3D xmlns:xsd='http://www.w3.org/2001/XMLSchema-instance' profile='Full' version='3.0' xsd:noNamespaceSchemaLocation='http://www.web3d.org/specifications/x3d-3.0.xsd'>
+  <Scene DEF='scene'>
+    <IOSensor DEF='io' type='ZSpaceNode' randMax='3' >
+      <field accessType='outputOnly' name='headposition' type='SFVec3f'/>
+      <field accessType='outputOnly' name='headrotation' type='SFRotation'/>
+      <field accessType='outputOnly' name='handposition' type='SFVec3f'/>
+      <field accessType='outputOnly' name='handrotation' type='SFRotation'/>
+      <field accessType='outputOnly' name='button_0' type='SFBool'/>
+      <field accessType='outputOnly' name='button_1' type='SFBool'/>
+      <field accessType='outputOnly' name='button_2' type='SFBool'/>
+    </IOSensor>
+    <Shape>
+      <Text DEF='text' string='"Head Pos: undef" "Head Rot: undef" "Hand Pos: undef" "Hand Rot: undef" "Button 0: undef" "Button 1: undef" "Button 2: undef"'/>
+    </Shape>
+    <Script DEF='print'>
+      <field accessType='initializeOnly' name='text' type='SFNode'>
+        <Text USE='text'/>
+      </field>
+      <field accessType='inputOnly' name='headpos' type='SFVec3f'/>
+      <field accessType='inputOnly' name='headrot' type='SFRotation'/>
+      <field accessType='inputOnly' name='handpos' type='SFVec3f'/>
+      <field accessType='inputOnly' name='handrot' type='SFRotation'/>
+	  <field accessType='inputOnly' name='button0' type='SFBool'/>
+      <field accessType='inputOnly' name='button1' type='SFBool'/>
+      <field accessType='inputOnly' name='button2' type='SFBool'/>
+<![CDATA[javascript:
+
+  //--------------------
+  function headpos(value) 
+  {
+    text.string[0] = 'Head Pos: ' + value; 
+  }
+  function headrot(value) 
+  {
+    text.string[1] = 'Head Rot: ' + value; 
+  }
+  function handpos(value) 
+  {
+    text.string[2] = 'Hand Pos: ' + value; 
+  }
+  function handrot(value) 
+  {
+    text.string[3] = 'Hand Rot: ' + value; 
+  }
+  function button0(value) 
+  {
+    text.string[4] = 'Button 0: ' + value; 
+  }
+  function button1(value) 
+  {
+    text.string[5] = 'Button 1: ' + value; 
+  }
+  function button2(value) 
+  {
+    text.string[6] = 'Button 2: ' + value; 
+  }
+
+  ]]>
+    </Script>
+    <ROUTE fromNode='io' fromField='headposition' toNode='print' toField='headpos'/>
+    <ROUTE fromNode='io' fromField='headrotation' toNode='print' toField='headrot'/>
+    <ROUTE fromNode='io' fromField='handposition' toNode='print' toField='handpos'/>
+    <ROUTE fromNode='io' fromField='handrotation' toNode='print' toField='handrot'/>
+    <ROUTE fromNode='io' fromField='button_0' toNode='print' toField='button0'/>
+    <ROUTE fromNode='io' fromField='button_1' toNode='print' toField='button1'/>
+    <ROUTE fromNode='io' fromField='button_2' toNode='print' toField='button2'/>
+  </Scene>
+</X3D>

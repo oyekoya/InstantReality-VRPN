@@ -1,0 +1,129 @@
+/**
+   Copyright 2006, Karljohan Lundin
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#ifndef _CANDY_I18N_HH_
+#define _CANDY_I18N_HH_
+
+#include <Candy/Candy.hh>
+
+#ifdef HAVE_XERCES
+
+#include <string>
+
+#include <H3D/X3DChildNode.h>
+#include <H3D/X3DUrlObject.h>
+#include <H3D/H3DDynamicFieldsObject.h>
+
+#include <xercesc/sax/HandlerBase.hpp>
+
+
+namespace Candy {
+  
+  XERCES_CPP_NAMESPACE_USE
+  
+  /**\ingroup expert
+     I18n is a abbreviation of Internationalization, which is the
+     collective name for systems that facilitates the support for
+     multiple languages of a game or application. This provides
+     strings for buttons, menus and such and reads this data from an
+     XML file with multilingual strings.
+     
+     \beginX3D
+     \field  url \n1 MFString \n2 "" \n3
+      The file to read language specific strings from. \eol
+     \eventIn  language \n1 MFString \n2 "en" \n3
+      The languages to use in descending priority. If a field is
+      specified only in a language of lower priority, this language's
+      value will be used. \eol
+     \eventOut <varying> \n1 SFString \n2 "" \n3
+      Every field specified in the language field maps to a field of
+      this node. Each such field can then be routed to a user
+      interface component or something similar. \eol
+     \eventOut <varying>_M \n1 MFString \n2 [] \n3
+      Every string field has a string array equivalent containing zero
+      elements if no string is specified for the field and language,
+      or one element for each line of the language string. This field
+      has the same name as the single string value, but with the
+      suffix '_M'. \eol
+     \endX3D
+  */
+  class CANDY_API I18N
+    : public H3D::X3DChildNode,
+      public H3D::X3DUrlObject,
+      public H3D::H3DDynamicFieldsObject,
+      public HandlerBase {
+    
+  protected:
+    
+    struct CANDY_API Update
+      : H3D::MFString {
+      virtual void update();
+    };
+    friend struct Update;
+    
+    typedef std::map< std::string, std::string > fields_t;
+    typedef std::map< std::string, fields_t > langs_t;
+    langs_t languages;
+    
+    std::auto_ptr< Update > update;
+    
+  public:
+    
+    I18N( H3D::Inst< H3D::SFNode   > _metadata = 0,
+          H3D::Inst< H3D::MFString > _url      = 0,
+          H3D::Inst< H3D::MFString > _language = 0,
+          H3D::Inst< Update        > _update   = 0 );
+    
+    /**
+       The languages to use in descending priority. If a field is
+       specified only in a language of lower priority, this language's
+       value will be used.
+    */
+    std::auto_ptr< H3D::MFString > language;
+    
+    void initialize();
+    
+    static H3D::H3DNodeDatabase database;
+    
+  private:
+    
+    std::string parse_language;
+    std::string *parse_value;
+    
+    void startDocument();
+    
+    void startElement( const XMLCh* const name,
+                       AttributeList& attributes );
+    
+    void characters( const XMLCh* const chars,
+                     const unsigned int length );
+    
+    void endElement( const XMLCh* const name );
+    
+    void endDocument();
+    
+  };
+
+}
+
+
+#endif
+#endif

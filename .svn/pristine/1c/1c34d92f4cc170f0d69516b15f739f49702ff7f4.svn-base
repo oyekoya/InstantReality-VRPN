@@ -1,0 +1,76 @@
+#X3D V3.0 utf8
+
+
+Engine {
+jobs [
+  RenderJob { 
+    windowGroups [
+      WindowGroup {
+        windows [
+          LocalWindow {
+          buffer 4
+          size 1920 1080
+            views [
+              Viewarea {
+                leftBuffer TRUE
+                rightBuffer FALSE
+                modifier [
+				DEF modifier_front_wall_left ProjectionViewModifier {
+					surface [
+						-1.2192 -0.9144 -1.2192,
+						 1.2192 -0.9144 -1.2192,
+						 1.2192  0.9144 -1.2192,
+						-1.2192  0.9144 -1.2192 ]
+					mono FALSE
+                    leftEye  TRUE
+                    rightEye FALSE
+					eyeSeparation 0.08   
+					#zeroParallaxDistance 1
+                  }
+                ]
+              }
+              Viewarea {
+                leftBuffer FALSE
+                rightBuffer TRUE
+                modifier [
+				DEF modifier_front_wall_right ProjectionViewModifier {
+					surface [
+						-1.2192 -0.9144 -1.2192,
+						 1.2192 -0.9144 -1.2192,
+						 1.2192  0.9144 -1.2192,
+						-1.2192  0.9144 -1.2192 ]
+					mono FALSE
+                    leftEye  FALSE
+                    rightEye TRUE
+					eyeSeparation 0.08   
+					#zeroParallaxDistance 1
+                  }	
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }	
+DEF io IOSensor {
+  type "ZSpaceNode"
+  field SFString randMax "3"
+  eventOut SFVec3f headposition
+  eventOut SFRotation headrotation
+}
+DEF sc Script {
+field SFVec3f pos 
+field SFRotation rot
+field SFNode Tr USE Tr
+eventOut SFMatrix eyematrix
+url "javascript:
+function set_matrix(v){
+	var vm = new VrmlMatrix();
+	vm.setTransform(io.headposition,io.headrotation);
+}
+"}]
+ROUTE io.trackermatrix TO modifier_front_wall_left.set_eyeTransform
+ROUTE io.trackermatrix TO modifier_front_wall_right.set_eyeTransform
+}
+

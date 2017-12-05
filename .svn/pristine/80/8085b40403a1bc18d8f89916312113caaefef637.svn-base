@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">
+<X3D >
+  <Engine requiredJobList="" >
+	<TimerJob />
+	<InteractionJob />
+	<SynchronizeJob />
+  </Engine>
+  <Scene DEF='scene'>
+    <IOSensor DEF='io' type='FooNode' randMax='10' >
+      <field accessType='outputOnly' name='Pos*' type='SFVec3f' />
+      <field accessType='outputOnly' name='Rot*' type='SFRotation'/>
+    </IOSensor>
+    <Script DEF='print'>
+      <field accessType='inputOnly' name='pos' type='SFVec3f'/>
+      <field accessType='inputOnly' name='rot' type='SFRotation'/>
+javascript:
+
+  //--------------------
+  function pos(value) 
+  {
+    print ( 'Pos: ' + value );
+  }
+
+  //--------------------
+  function rot(value) 
+  {
+    print ( 'Rot: ' + value );
+  }
+
+    </Script>
+    <ROUTE fromNode='io' fromField='Pos*' toNode='print' toField='pos'/>
+    <ROUTE fromNode='io' fromField='Rot*' toNode='print' toField='rot'/>
+  </Scene>
+</X3D>

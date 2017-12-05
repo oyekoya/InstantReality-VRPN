@@ -1,0 +1,149 @@
+//////////////////////////////////////////////////////////////////////////////
+//    Copyright 2004, SenseGraphics AB
+//
+//    This file is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//    H3D API is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    You should have received a copy of the GNU General Public License
+//    along with H3D API; if not, write to the Free Software
+//    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//
+//    A commercial license is also available. Please contact us at 
+//    www.sensegraphics.com for more information.
+//
+//
+/// \file GraspTransform.h
+/// \brief Header file for GraspTransform, X3D scene-graph node
+///
+//
+//////////////////////////////////////////////////////////////////////////////
+#ifndef __GRASPTRANSFORM_H__
+#define __GRASPTRANSFORM_H__
+
+#include <H3D/MatrixTransform.h>
+#include <H3D/SFRotation.h>
+
+#include <H3D/MFInt32.h>
+#include <H3D/SFFloat.h>
+#include <H3D/SFInt32.h>
+
+namespace H3D {
+
+  /// \ingroup Groups
+  /// 
+  /// \par Internal routes:
+  /// \dotfile GraspTransform.dot
+  class GraspTransform : public MatrixTransform {
+  public:
+    
+  class Test : public TypedField< SFInt32, Types< SFFloat, SFFloat >, AnyNumber< Any< SFInt32, MFInt32> > > {
+  };
+    class Grasp: public AutoUpdate< SFBool > {
+    public:
+      virtual void setValue( const bool &v );
+    protected:
+      virtual void update();
+    };
+
+    class GraspMatrix:  
+      public TypedField< MatrixTransform::SFMatrix4f,
+                         Types< SFVec3f,
+                                SFRotation > > {
+    protected:
+      virtual void update();
+
+      /// The graspPosition value when grasp was set to true.
+      Vec3f grasp_pos;
+
+      /// The graspOrientation value when grasp was set to true.
+      Rotation grasp_orn;
+      friend class GraspTransform;
+    };
+
+    /// routes_in[0] is the grasp field.
+    /// routes_in[1] is the graspPosition field.
+    /// routes_in[2] is the graspOrientation field.
+    class SFMatrix4f: 
+      public TypedField< MatrixTransform::SFMatrix4f,
+                         Types< MatrixTransform::SFMatrix4f > > {
+    protected:
+      virtual void update();
+ 
+      /// A matrix containing the accumulated transformation from
+      /// previous grasps.
+      Matrix4f previous_matrix;
+
+      friend class GraspTransform;
+    };
+
+    /// Constructor.
+    GraspTransform( Inst< AddChildren> _addChildren              = 0,
+                    Inst< RemoveChildren > _removeChildren       = 0,
+                    Inst< MFChild    > _children                 = 0,
+                    Inst< SFNode     > _metadata                 = 0,
+                    Inst< SFBound    > _bound                    = 0,
+                    Inst< SFVec3f    > _bboxCenter               = 0,
+                    Inst< SFVec3f    > _bboxSize                 = 0,
+                    Inst< SFTransformedBound > _transformedBound = 0,    
+                    Inst< SFMatrix4f > _matrix                   = 0,
+                    Inst< SFMatrix4f > _accumulatedForward       = 0,
+                    Inst< SFMatrix4f > _accumulatedInverse       = 0,
+                    Inst< Grasp      > _grasp                    = 0,
+                    Inst< SFVec3f    > _graspPosition            = 0,
+                    Inst< SFRotation > _graspOrientation         = 0 );
+
+    virtual void graspObjects();
+    
+    virtual void releaseObjects();
+
+    /// The H3DNodeDatabase for this node.
+    static H3DNodeDatabase database;
+
+    /// When grasp is set to true the current graspPosition and
+    /// graspOrientation is saved. The matrix field will then be updated
+    /// to move with the changes to the graspPosition and graspOrientation
+    /// field as long as the grasp field is true. When it is set to false
+    /// again the matrix will stop updating.
+    /// 
+    /// <b>Default value:</b> false \n
+    /// <b>Access type:</b> inputOutput \n
+    /// 
+    /// \dotfile GraspTransform_grasp.dot
+    auto_ptr< Grasp > grasp;
+
+    /// The graspPosition field determines how the grasped objects 
+    /// should move. The position is sampled when the grasp field
+    /// is set to true and the translation while grasping is the
+    /// difference between the current value of this field and the
+    /// value when grasped.
+    ///
+    /// <b>Default value:</b> Vec3f( 0, 0, 0 ) \n
+    /// <b>Access type:</b> inputOutput \n
+    /// 
+    /// \dotfile GraspTransform_graspPosition.dot
+    auto_ptr< SFVec3f > graspPosition;
+
+    /// The graspOrientation field determines how the grasped objects 
+    /// should rotation. The rotation is sampled when the grasp field
+    /// is set to true and the rotation while grasping is the
+    /// difference between the current value of this field and the
+    /// value when grasped.
+    /// 
+    /// <b>Default value:</b> Rotation( 1, 0, 0, 0 ) \n
+    /// <b>Access type:</b> inputOutput \n
+    /// 
+    /// \dotfile GraspTransform_graspOrientation.dot
+    auto_ptr< SFRotation > graspOrientation;
+
+    auto_ptr< GraspMatrix > grasp_matrix;
+  };
+}
+
+#endif

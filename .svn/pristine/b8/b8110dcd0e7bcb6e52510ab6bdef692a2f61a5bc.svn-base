@@ -1,0 +1,119 @@
+/**
+   Copyright 2005, 2007, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#ifndef _CANDY_PATHHAPTICSDEVICE_HH_
+#define _CANDY_PATHHAPTICSDEVICE_HH_
+
+#include <Candy/Candy.hh>
+
+#include <H3D/H3DHapticsDevice.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3D/FieldTemplates.h>
+#include <H3D/TraverseInfo.h>
+#include <H3D/ThreadSafeFields.h>
+#include <H3D/MFVec3f.h>
+#include <H3D/MFRotation.h>
+#include <H3D/SFBool.h>
+
+
+namespace Candy {
+  
+  /**
+     This is a haptics device that is controlled through a pre-defined
+     spline path. Use this device to generate a predictable course of
+     events in the haptic simulation for testing haptic algorithms,
+     rendering of deformations, and other parameters.
+     
+     \beginX3D
+     \exposedField  path \n1 MFVec3f \n2 [] \n3
+      The control points for the cubic spline path that this device
+      should follow. \eol
+     \exposedField  startTime \n1 SFFloat \n2 0.0 \n3
+      The time at which the device follows the path. \eol
+     \exposedField  rate \n1 SFFloat \n2 1.0 \n3
+      The rate at which the control points are passed expressed in
+      control points per second. \eol
+     \exposedField  closed \n1 SFBool \n2 false \n3
+      If true the path is closed, so that when the last control
+      point is reached the first control point is approach to start
+      over again. \eol
+     \endX3D
+  */
+  class CANDY_API PathHapticsDevice
+    : public H3D::H3DHapticsDevice {
+    
+    class CANDY_API Device
+      : public HAPI::HAPIHapticsDevice {
+      PathHapticsDevice *parent;
+    public:
+      inline Device(PathHapticsDevice *p) : parent(p){}
+      void updateDeviceValues( DeviceValues &dv, HAPI::HAPITime dt );
+      inline void sendOutput( DeviceOutput &dv, HAPI::HAPITime dt ){}
+      inline bool initHapticsDevice(int f = 1000){ return true; }
+      inline bool releaseHapticsDevice(){ return true; }
+    };
+    
+  public:
+    PathHapticsDevice
+    ( H3D::Inst< H3D::ThreadSafeMField< H3D::MFVec3f > > _path  = 0,
+      H3D::Inst< H3D::ThreadSafeSField< H3D::SFFloat > > _startTime = 0,
+      H3D::Inst< H3D::ThreadSafeSField< H3D::SFFloat > > _rate = 0,
+      H3D::Inst< H3D::ThreadSafeSField< H3D::SFBool > > _closed = 0 );
+    
+    /** The control points for the cubic spline path that this device
+        should follow. */
+    std::auto_ptr< H3D::ThreadSafeMField< H3D::MFVec3f > > path;
+    
+    /** The time at which the device follows the path. */
+    std::auto_ptr< H3D::ThreadSafeSField< H3D::SFFloat > > startTime;
+    
+    /** The rate at which the control points are passed expressed in
+        control points per second. */
+    std::auto_ptr< H3D::ThreadSafeSField< H3D::SFFloat > > rate;
+    
+    /** If true the path is closed, so that when the last control
+        point is reached the first control point is approach to start
+        over again. */
+    std::auto_ptr< H3D::ThreadSafeSField< H3D::SFBool > > closed;
+    
+    static H3D::H3DNodeDatabase database;
+    
+  protected:
+    
+    /**
+       The time at which this device was initialized.
+    */
+    double initTime;
+    
+    /**
+       Get the position of the haptics device.
+    */
+    H3D::Vec3f getPosition();
+    
+    /**
+       Get the velocity of the haptics device.
+    */
+    H3D::Vec3f getVelocity();
+  };
+}
+
+#endif

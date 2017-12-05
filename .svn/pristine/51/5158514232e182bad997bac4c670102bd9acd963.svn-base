@@ -1,0 +1,97 @@
+# Language template for Calib, the calibration tool
+# Copyright (c)2008 Karljohan Lundin Palmerius
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"POT-Creation-Date: 2008-09-23 14:03+CEST\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: utf-8\n"
+"Generated-By: pygettext.py 1.5\n"
+
+
+msgid "You need to have either numpy or Python Numeric installed for this tool to work!"
+msgstr ""
+
+msgid "You need to have scipy installed for this tool to work!"
+msgstr ""
+
+msgid "No device present to calibrate!"
+msgstr ""
+
+msgid "Cancel"
+msgstr ""
+
+msgid "Back"
+msgstr ""
+
+msgid "Next >>"
+msgstr ""
+
+msgid ""
+"This is the Calib viewpoint calibration wizard. It will help you to configure the correct camera for your display, which is necessary for the correct stereo calibration.\n"
+"\n"
+"If you already have a good default viewpoint then press Cancel to continue with the haptics device calibration."
+msgstr ""
+
+msgid "Enter the height of your screen and the screen distance from the users eyes in meters."
+msgstr ""
+
+msgid "Screen height (m):"
+msgstr ""
+
+msgid "Screen distance (m):"
+msgstr ""
+
+msgid "The view has been calculated. Press finish to continue with the haptics device calibration."
+msgstr ""
+
+msgid "Finish"
+msgstr ""
+
+msgid "Viewpoint Wizard"
+msgstr ""
+
+msgid "Active device: %d"
+msgstr ""
+
+msgid ""
+"Select a position and hold down the button\n"
+"The space key toggles the button\n"
+"Press a number key (0-9) to select device"
+msgstr ""
+
+msgid "Move the real instrument into the red stylus and release the button"
+msgstr ""
+
+msgid "Find a new position and orientation and hold down the button again"
+msgstr ""
+
+msgid "When you have enough samples press <c>"
+msgstr ""
+
+msgid ""
+"The device is calibrated\n"
+"You may perform the calibration procedure again\n"
+"Alternatively you may press <p> to print the calibration settings"
+msgstr ""
+
+msgid ""
+"Dropped the button?\n"
+"Undo last sample with <z>\n"
+"Undo all with samples with <Z>"
+msgstr ""
+
+msgid ""
+"Could not print calibration data\n"
+"Have you pressed <c> to calibrate?"
+msgstr ""
+
+msgid "The calibration data have been printed to your terminal"
+msgstr ""
+

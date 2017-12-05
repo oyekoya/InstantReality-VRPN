@@ -1,0 +1,34 @@
+# - Find ISense
+# Find the native InterSense headers and libraries.
+#
+#  ISense_INCLUDE_DIR  -  where to find header files.
+#  ISense_FOUND        - True if ISense found.
+
+
+# Look for the header file.
+FIND_PATH(ISense_INCLUDE_DIR NAMES isense.h isense.c
+                             PATHS $ENV{H3D_EXTERNAL_ROOT}/include
+                                   ../../External/include )
+MARK_AS_ADVANCED(ISense_INCLUDE_DIR)
+
+# Copy the results to the output variables.
+IF(ISense_INCLUDE_DIR)
+  SET(ISense_FOUND 1)
+
+  SET(ISense_INCLUDE_DIR ${ISense_INCLUDE_DIR})
+
+ELSE(ISense_INCLUDE_DIR)
+  SET(ISense_FOUND 0)
+  SET(ISense_INCLUDE_DIR)
+ENDIF(ISense_INCLUDE_DIR)
+
+# Report the results.
+IF(NOT ISense_FOUND)
+  SET(ISense_DIR_MESSAGE
+    "ISense was not found.")
+  IF(ISense_FIND_REQUIRED)
+    MESSAGE(FATAL_ERROR "${ISense_DIR_MESSAGE}")
+  ELSEIF(NOT ISense_FIND_QUIETLY)
+    MESSAGE(STATUS "${ISense_DIR_MESSAGE}")
+  ENDIF(ISense_FIND_REQUIRED)
+ENDIF(NOT ISense_FOUND)

@@ -1,0 +1,102 @@
+/**
+   Copyright 2005, Karljohan Lundin
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include <Candy/Capture.hh>
+
+#include <GL/glew.h>
+#include <stdio.h>
+
+using namespace H3D;
+using namespace Candy;
+
+#ifdef _MSC_VER
+#define snprintf _snprintf
+#endif
+
+H3DNodeDatabase Capture::database
+( "Capture",
+  &(newInstance<Capture>),
+  typeid( Capture ),
+  &X3DChildNode::database );
+
+namespace CaptureInternals {
+  FIELDDB_ELEMENT( Capture, nameBase, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( Capture, frameRate, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( Capture, frame, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( Capture, capture, INPUT_OUTPUT );
+}
+
+Capture::Capture()
+  : nameBase( new SFString("frame") ),
+    frameRate( new SFInt32(10) ),
+    frame( new SFInt32(0) ),
+    capture( new SFBool(0) ),
+    frame_time(0) {
+  
+  type_name = "Capture";
+  database.initFields( this );
+}
+
+
+void Capture::traverseSG(TraverseInfo &ti){
+  double new_time = double(TimeStamp::now());
+  if( capture->getValue() &&
+      ( frameRate->getValue() < 1e-5 ||
+        ( new_time - frame_time ) > 1.0/frameRate->getValue() ) ){
+    frame_time = new_time;
+    
+    GLint size[4];
+    glGetIntegerv( GL_VIEWPORT, size );
+    
+    int width = size[2]-size[0];
+    int height = size[3]-size[1];
+    int image_size = 4*width*height;
+    unsigned char *image_data = new unsigned char[image_size];
+    
+    static char filename[1024] = { '\0' };
+    
+    glReadBuffer( GL_FRONT );
+    
+    snprintf( filename, 1023, "%s_%dx%d_%05d.raw",
+              nameBase->getValue().c_str(),
+              width, height,
+              frame->getValue() );
+    
+    glReadPixels( size[0], size[1], width, height,
+                  GL_RGBA, GL_UNSIGNED_BYTE, image_data );
+    
+    FILE *out = fopen( filename, "wb" );
+    int bytes_left = 4*width*height;
+    unsigned char *to_write = image_data;
+    int written;
+    while( (written = fwrite( to_write,
+                              sizeof(unsigned char),
+                              bytes_left, out )) > 0 ){
+      image_data += written;
+      bytes_left -= written;
+    }
+    fclose(out);
+    
+    delete[] image_data;
+    
+    frame->setValue( frame->getValue() + 1 );
+  }
+}

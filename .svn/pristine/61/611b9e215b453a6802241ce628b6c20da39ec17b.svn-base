@@ -1,0 +1,107 @@
+/**
+   Copyright 2008, Andreas Bærentzen
+   Copyright 2008, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#ifndef _CANDY_XSPLINE_HH_
+#define _CANDY_XSPLINE_HH_
+
+template<class T>
+class xSpline {
+public:
+  
+  static T evaluate( const std::vector<T> &value,
+                     const std::vector<float> &weight,
+                     double t );
+  
+  inline static double intpow( double x, int n ){
+    double val = x;
+    for( int i=1 ; i < n ; i++ ){
+      val *= x; }
+    return val;
+  }
+
+  inline static double g( double u, double q, double p ){
+    return ( (        q     ) * (u) +
+             (      2*q     ) * (u*u) +
+             ( 10 -12*q   -p) * (u*u*u) +
+             (-15 +14*q +2*p) * (u*u*u*u) +
+             (  6  -5*q   -p) * (u*u*u*u*u) );
+  }
+  
+  inline static double h( double u, double q ){
+    return ( +q     *(u)
+             +2*q   *(u*u)
+             -2*q   *(u*u*u*u)
+             -q     *(u*u*u*u*u) );
+  }
+  
+};
+
+template<class T>
+T xSpline<T>::evaluate( const std::vector<  T  > &value,
+                        const std::vector<float> &weight,
+                        double t ){
+  
+  double kf = floor(t) - 1.0;
+  int k = int(kf);
+  
+  double T0p = kf+1 + (weight[k+1]>0?weight[k+1]:0);
+  double T1p = kf+2 + (weight[k+2]>0?weight[k+2]:0);
+  double T2m = kf+1 - (weight[k+1]>0?weight[k+1]:0);
+  double T3m = kf+2 - (weight[k+2]>0?weight[k+2]:0);
+  
+  double pm1 = intpow(kf   - T0p, 2) * 2.0;
+  double pm0 = intpow(kf+1 - T1p, 2) * 2.0;
+  double pp1 = intpow(kf+2 - T2m, 2) * 2.0;
+  double pp2 = intpow(kf+3 - T3m, 2) * 2.0;
+  
+  double qp0 = weight[k+1]<0?-weight[k+1]/2.0:0;
+  double qp1 = weight[k+2]<0?-weight[k+2]/2.0:0;
+  double qp2 = weight[k+1]<0?-weight[k+1]/2.0:0;
+  double qp3 = weight[k+2]<0?-weight[k+2]/2.0:0;
+	
+  double A0, A1, A2, A3;
+  if( t <= T0p ){
+    A0 =  g((t-T0p)/(kf   - T0p), qp0, pm1); }
+  else {
+    A0 = qp0>0 ? h((t-T0p)/(kf   - T0p), qp0) : 0; }
+  
+  A1 = g((t-T1p)/(kf+1 - T1p), qp1, pm0);
+  
+  A2 = g((t-T2m)/(kf+2 - T2m), qp2, pp1);
+  
+  if( t >= T3m ){
+    A3 = g((t-T3m)/(kf+3 - T3m), qp3, pp2); }
+  else {
+    A3 = qp3>0 ? h((t-T3m)/(kf+3 - T3m), qp3) : 0; }
+  
+  T C =
+    value[k  ] * A0 +
+    value[k+1] * A1 +
+    value[k+2] * A2 +
+    value[k+3] * A3;
+  C *= 1.f/( A0 + A1 + A2 + A3 );
+  
+  return C;
+}
+
+#endif
+

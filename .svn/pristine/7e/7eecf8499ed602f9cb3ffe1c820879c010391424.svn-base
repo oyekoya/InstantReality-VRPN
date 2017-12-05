@@ -1,0 +1,92 @@
+/**
+
+Copyright 2003-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+#include <HVR/GadgetTracker.hh>
+
+#ifdef HAVE_GADGETEER
+
+#include <Candy/Debug.hh>
+
+using namespace H3D;
+using namespace HVR;
+
+H3D::H3DNodeDatabase GadgetTracker::database
+( "GadgetTracker",
+  &(newInstance<GadgetTracker>),
+  typeid( GadgetTracker ),
+  &HVRTrackerNode::database );
+
+namespace TransferFunctionInternals {
+  FIELDDB_ELEMENT( GadgetTracker, trackerName, INITIALIZE_ONLY );
+}
+
+GadgetTracker::GadgetTracker
+( Inst< SFNode > _metadata,
+  Inst< EventSink > _eventSink,
+  Inst< TSSField(SFMatrix4f) > _rawMatrix,
+  Inst< TSSField(SFVec3f) > _rawPosition,
+  Inst< TSSField(SFRotation) > _rawOrientation,
+  Inst< CalibratedMatrix > _trackerMatrix,
+  Inst< CalibratedPosition > _trackerPosition,
+  Inst< CalibratedOrientation > _trackerOrientation,
+  Inst< SFMatrix4f > _positionCalibration,
+  Inst< SFRotation > _orientationCalibration,
+  
+  Inst< SFString > _trackerName )
+  
+  : HVRTrackerNode( _metadata,
+                    _eventSink,
+                    _rawMatrix,
+                    _rawPosition,
+                    _rawOrientation,
+                    _trackerMatrix,
+                    _trackerPosition,
+                    _trackerOrientation,
+                    _positionCalibration,
+                    _orientationCalibration ),
+    trackerName( _trackerName ) {
+  
+  type_name = "GadgetTracker";
+  database.initFields(this);
+}
+
+GadgetTracker::~GadgetTracker(){}
+
+void GadgetTracker::initialize(){
+  interface.init(trackerName->getValue());
+  asynchronousCallback(GadgetTracker::callback,this);
+}
+
+H3DUtil::PeriodicThreadBase::CallbackCode GadgetTracker::callback(void *data){
+  GadgetTracker *tracker = static_cast<GadgetTracker*>(data);
+  gmtl::Matrix44f gM = tracker->interface->getData(gadget::PositionUnitConversion::ConvertToMeters);
+  Matrix4f hM(gM[0][0],gM[0][1],gM[0][2],gM[0][3],
+              gM[1][0],gM[1][1],gM[1][2],gM[1][3],
+              gM[2][0],gM[2][1],gM[2][2],gM[2][3],
+              gM[3][0],gM[3][1],gM[3][2],gM[3][3]);
+  tracker->updateRawMatrix(hM);
+}
+
+#endif
+

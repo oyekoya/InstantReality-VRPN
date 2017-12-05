@@ -1,0 +1,100 @@
+/**
+
+Copyright 2009-2010 Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _CANDY_INTERSENSETRACKER_HH_
+#define _CANDY_INTERSENSETRACKER_HH_
+
+#include <HVR/HVR.hh>
+#include <HVR/HVRTrackerNode.hh>
+
+#ifdef HAVE_ISENSE
+
+#include <isense.h>
+
+#include <H3D/SFBool.h>
+#include <H3D/SFInt32.h>
+#include <H3D/SFTime.h>
+#include <H3D/SFVec3f.h>
+#include <H3D/SFRotation.h>
+
+/// The HVR package
+namespace HVR {
+  
+  /**
+     The intersense tracker
+  */
+  class HVR_API InterSenseTracker
+    : public HVRTrackerNode {
+
+    struct Collector
+      : H3D::TypedField< H3D::SFBool,
+                         H3D::Types< H3D::SFTime, H3D::SFInt32 > > {
+      void update();
+    };
+    
+  public:
+    
+    InterSenseTracker
+      ( H3D::Inst< H3D::SFNode > _metadata = 0,
+        H3D::Inst< EventSink > _eventSink = 0,
+        
+        H3D::Inst< TSSField(H3D::SFMatrix4f) > _rawMatrix = 0,
+        H3D::Inst< TSSField(H3D::SFVec3f) > _rawPosition = 0,
+        H3D::Inst< TSSField(H3D::SFRotation) > _rawOrientation = 0,
+        
+        H3D::Inst< CalibratedMatrix > _trackerMatrix = 0,
+        H3D::Inst< CalibratedPosition > _trackerPosition = 0,
+        H3D::Inst< CalibratedOrientation > _trackerOrientation = 0,
+        
+        H3D::Inst< H3D::SFMatrix4f > _positionCalibration = 0,
+        H3D::Inst< H3D::SFRotation > _orientationCalibration = 0,
+        
+        H3D::Inst< H3D::SFInt32 > _deviceId = 0,
+        H3D::Inst< Collector > _collector  = 0 );
+    
+    ~InterSenseTracker();
+    
+    std::auto_ptr< H3D::SFInt32 > deviceId;
+    
+    std::auto_ptr< Collector > collector;
+    
+    unsigned int getNumberOfDevices();
+    
+    bool getDevicePosition(unsigned int idx, H3D::Vec3f &pos, H3D::Rotation &orn);
+    
+    static H3D::H3DNodeDatabase database;
+    
+  private:
+    
+    static ISD_TRACKER_HANDLE handle;
+    static ISD_TRACKER_INFO_TYPE tracker_info;
+    static ISD_HARDWARE_INFO_TYPE hardware_info;
+    static int maxStations;
+    
+  };
+}
+
+#endif
+#endif

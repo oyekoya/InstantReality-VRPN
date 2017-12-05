@@ -1,0 +1,38 @@
+#VRML V2.0 utf8
+
+DEF io IOSensor {
+  type "FooNode"
+  randMax "10"
+  eventOut SFVec3f pos*
+  eventOut SFRotation rot*
+}
+
+Shape {
+  geometry DEF text Text {
+    string [ "Pos: undef", "Rot: undef" ]
+  }
+}
+
+DEF print Script {
+  field SFNode text USE text
+  eventIn SFVec3f pos
+  eventIn SFRotation rot
+  url [ "javascript:
+
+  //--------------------
+  function pos(value) 
+  {
+    text.string[0] = 'Pos: ' + value; 
+  }
+
+  //--------------------
+  function rot(value) 
+  {
+    text.string[1] = 'Rot: ' + value; 
+  }
+
+  " ]
+}
+
+ROUTE io.pos* TO print.pos
+ROUTE io.rot* TO print.rot

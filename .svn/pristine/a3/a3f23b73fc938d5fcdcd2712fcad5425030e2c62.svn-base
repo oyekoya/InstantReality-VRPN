@@ -1,0 +1,133 @@
+/**
+
+Copyright 2009-2011, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _CANDY_KINECTHIGHPOINTTRACKER_HH_
+#define _CANDY_KINECTHIGHPOINTTRACKER_HH_
+
+#include <HVR/HVR.hh>
+#include <HVR/HVRTrackerNode.hh>
+
+#ifdef HAVE_FREENECT
+
+#include <libfreenect.h>
+
+#include <H3D/SFBool.h>
+#include <H3D/SFInt32.h>
+#include <H3D/SFFloat.h>
+#include <H3D/SFTime.h>
+#include <H3D/SFVec3f.h>
+#include <H3D/SFRotation.h>
+
+/// The HVR package
+namespace HVR {
+  
+  /**
+     The intersense tracker
+  */
+  class HVR_API KinectHighPointTracker
+    : public HVRTrackerNode {
+
+    struct Collector
+      : H3D::TypedField< H3D::SFBool, H3D::SFTime > {
+      void update();
+      freenect_context *context;
+    };
+    
+    struct KinectLED
+      : H3D::OnValueChangeSField< H3D::SFInt32 > {
+      void onValueChange( const int &led );
+    };
+    friend struct KinectLED;
+    
+    struct KinectAngle
+      : H3D::OnValueChangeSField< H3D::SFFloat > {
+      void onValueChange( const float &angle );
+    };
+    friend struct KinectAngle;
+    
+  public:
+    
+    KinectHighPointTracker
+      ( H3D::Inst< H3D::SFNode > _metadata = 0,
+        H3D::Inst< EventSink > _eventSink = 0,
+        
+        H3D::Inst< TSSField(H3D::SFMatrix4f) > _rawMatrix = 0,
+        H3D::Inst< TSSField(H3D::SFVec3f) > _rawPosition = 0,
+        H3D::Inst< TSSField(H3D::SFRotation) > _rawOrientation = 0,
+        
+        H3D::Inst< CalibratedMatrix > _trackerMatrix = 0,
+        H3D::Inst< CalibratedPosition > _trackerPosition = 0,
+        H3D::Inst< CalibratedOrientation > _trackerOrientation = 0,
+        
+        H3D::Inst< H3D::SFMatrix4f > _positionCalibration = 0,
+        H3D::Inst< H3D::SFRotation > _orientationCalibration = 0,
+        
+        H3D::Inst< H3D::SFInt32 > _deviceId = 0,
+        H3D::Inst< H3D::SFFloat > _depthScaleFactor = 0,
+        H3D::Inst< H3D::SFFloat > _depthOffsetFactor = 0,
+        H3D::Inst< H3D::SFFloat > _trackingForegroundLimit = 0,
+        H3D::Inst< KinectLED > _kinectLED = 0,
+        H3D::Inst< KinectAngle > _kinectAngle = 0,
+        H3D::Inst< Collector > _collector  = 0 );
+    
+    ~KinectHighPointTracker();
+    
+    void initialiaze();
+    
+    std::auto_ptr< H3D::SFInt32 > deviceId;
+    
+    std::auto_ptr< H3D::SFFloat > depthScaleFactor;
+    
+    std::auto_ptr< H3D::SFFloat > depthOffsetFactor;
+
+    std::auto_ptr< H3D::SFFloat > trackingForegroundLimit;
+
+    std::auto_ptr< KinectLED > kinectLED;
+    
+    std::auto_ptr< KinectAngle > kinectAngle;
+    
+    std::auto_ptr< Collector > collector;
+    
+    static H3D::H3DNodeDatabase database;
+    
+    void initialize();
+    
+  private:
+    
+    static KinectHighPointTracker *instance;
+    static void callback(freenect_device *dev, void *v_depth, uint32_t timestamp);
+    void depth_event(uint16_t *depth);
+    
+    freenect_context *kinect_context;
+    freenect_device *kinect_device;
+    
+    std::deque<H3D::Vec3f> pflist;
+    H3D::Vec3f pfpos;
+    
+  };
+}
+
+#endif
+#endif

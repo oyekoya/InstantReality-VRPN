@@ -1,0 +1,64 @@
+# Copyright 2005-2010, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This Python script simply sets the cursorType field of all active
+windows so that the mouse pointer is changed. The default behaviour is
+to set the type to "NONE" which will simply remove the cursor when it
+is over the window.
+
+The default behaviour can be changed by setting "type" to another value:
+
+<MetadataString name="type" value="CROSSHAIR" containerField="references"/>
+
+The type can be any of "RIGHT_ARROW", "LEFT_ARROW", "INFO", "DESTROY",
+"HELP", "CYCLE", "SPRAY", "WAIT", "TEXT", "CROSSHAIR", "UP_DOWN",
+"LEFT_RIGHT", "TOP_SIDE", "BOTTOM_SIDE", "LEFT_SIDE", "RIGHT_SIDE",
+"TOP_LEFT_CORNER", "TOP_RIGHT_CORNER", "BOTTOM_RIGHT_CORNER",
+"BOTTOM_LEFT_CORNER", "FULL_CROSSHAIR", "NONE"
+
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+const {
+  "cursor_type": "NONE"
+  }
+
+ref_nodes = references.getValue()
+for node in ref_nodes:
+  
+  if hasattr(arg,"name") and arg.name.getValue() == "type":
+    const["cursor_type"] = arg.value.getValue()[0]
+    
+  else:
+    print "RemoveCursor: Unrecognized argument '%s'." % node
+
+
+scenes = getCurrentScenes()
+for scene in scenes:
+  windows = scene.window.getValue()
+  for window in windows:
+    window.manualCursorControl.setValue(True)
+    window.cursorType.setValue(const["cursor_type"])

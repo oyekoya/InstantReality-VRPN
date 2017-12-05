@@ -1,0 +1,155 @@
+/**
+   Copyright 2002, 2004-2005, 2007 Karljohan Lundin Palmerius
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include <Candy/PathHapticsDevice.hh>
+
+
+using namespace H3D;
+using namespace Candy;
+
+
+
+H3DNodeDatabase PathHapticsDevice::database
+( "PathHapticsDevice",
+  &(newInstance<PathHapticsDevice>),
+  typeid( PathHapticsDevice ),
+  &H3DHapticsDevice::database );
+
+namespace PathHapticsDeviceInternals {
+  FIELDDB_ELEMENT( PathHapticsDevice, path, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( PathHapticsDevice, startTime, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( PathHapticsDevice, rate, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( PathHapticsDevice, closed, INPUT_OUTPUT );
+}
+
+PathHapticsDevice::PathHapticsDevice
+( Inst< ThreadSafeMField< MFVec3f > > _path,
+  Inst< ThreadSafeSField< SFFloat > > _startTime,
+  Inst< ThreadSafeSField< SFFloat > > _rate,
+  Inst< ThreadSafeSField< SFBool > > _closed )
+  : path( _path ),
+    startTime( _startTime ),
+    rate( _rate ),
+    closed( _closed ) {
+  
+  type_name = "PathHapticsDevice";
+  database.initFields( this );
+  
+  startTime->setValue( 0, id );
+  rate->setValue( 1, id );
+  closed->setValue( false, id );
+  
+  initTime = TimeStamp::now();
+  
+  Device *d = new Device(this);
+  hapi_device.reset(d);
+}
+
+void PathHapticsDevice::Device::updateDeviceValues
+( DeviceValues &dv, HAPI::HAPITime dt ){
+  HAPIHapticsDevice::updateDeviceValues(dv,dt);
+  dv.position = parent->getPosition();
+  dv.velocity = parent->getVelocity();
+}
+
+
+#define CIQ1(t) (1-2*(t)*(t)+(t)*(t)*(t))
+#define CIQ2(t) (4-8*(t)+5*(t)*(t)-(t)*(t)*(t))
+
+Vec3f PathHapticsDevice::getPosition(){
+  std::vector<Vec3f> path = this->path->getValue();
+  H3DFloat startTime = this->startTime->getValue();
+  H3DFloat rate = this->rate->getValue();
+  bool closed = this->closed->getValue();
+  int size = path.size();
+  
+  double now = TimeStamp::now() - initTime;
+  
+  if( size < 1 ){
+    return Vec3f(0,0,0); }
+    
+  if( now <= startTime ){
+    return path[0]; }
+  
+  double t = rate * ( now - startTime );
+  
+  if( !closed && size < t ){
+    return path[size-1]; }
+  
+  int p = int(t);
+  t -= p;
+  p %= size;
+  
+  int a = p > 0 ? p-1 : closed ? size-1 : 0;
+  int c = p < size-1 ? p+1 : closed ? 0 : size-1;
+  int d = p < size-2 ? p+2 : closed ? (p+2)%size : size-1;
+  
+  return
+    ( CIQ2(t+1) * path[ a ] +
+      CIQ1( t ) * path[ p ] +
+      CIQ1(1-t) * path[ c ] +
+      CIQ2(2-t) * path[ d ] );
+}
+
+#define OFFSET 0.001
+Vec3f PathHapticsDevice::getVelocity(){
+  std::vector<Vec3f> path = this->path->getValue();
+  H3DFloat startTime = this->startTime->getValue();
+  H3DFloat rate = this->rate->getValue();
+  bool closed = this->closed->getValue();
+  int size = path.size();
+  
+  double now = TimeStamp::now() - initTime;
+  
+  if( !size || now <= startTime ){
+    return Vec3f(0,0,0); }
+  
+  double t1 = rate * ( now - startTime );
+  double t2 = t1 + OFFSET;
+  
+  if( !closed && size < t2 ){
+    return Vec3f(0,0,0); }
+  
+  int p1 = int(t1)%(closed?size+1:size);
+  t1 -= p1;
+
+  int p2 = int(t2)%(closed?size+1:size);
+  t2 -= p2;
+  
+  int a1 = p1 > 0 ? p1-1 : closed ? size-1 : 0;
+  int c1 = p1 < size-1 ? p1+1 : closed ? 0 : size-1;
+  int d1 = p1 < size-2 ? p1+2 : closed ? (p1+2)%size : size-1;
+  
+  int a2 = p2 > 0 ? p2-1 : closed ? size-1 : 0;
+  int c2 = p2 < size-1 ? p2+1 : closed ? 0 : size-1;
+  int d2 = p2 < size-2 ? p2+2 : closed ? (p2+2)%size : size-1;
+  
+  return
+    (rate/OFFSET)*(( CIQ2(t2+1) * path[ a2 ] +
+                     CIQ1( t2 ) * path[ p2 ] +
+                     CIQ1(1-t2) * path[ c2 ] +
+                     CIQ2(2-t2) * path[ d2 ] ) -
+                   ( CIQ2(t1+1) * path[ a1 ] +
+                     CIQ1( t1 ) * path[ p1 ] +
+                     CIQ1(1-t1) * path[ c1 ] +
+                     CIQ2(2-t1) * path[ d1 ] ));
+}
+

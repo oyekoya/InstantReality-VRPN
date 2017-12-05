@@ -1,0 +1,53 @@
+----OVERVIEW----
+Our objective is to extend H3D in such a way that it allows for
+interaction using a ZSpace. ZSpace.py provides an 'easy include'
+to get the code base working with an X3D scene.
+
+----FILES-----
+ZSpace.py
+Sets up the headtracking and stylus from the ZSpace in H3D.
+Using this as a PythonScript node in your X3D file should set up
+everything correctly if all files are in the correct places, 
+and the ZSpaceVRPNServer has been started.
+
+Candy_vc9.dll
+The library for the Candy extensions to H3D. This dll has been modified
+such that VRPNTracker includes button detection, and HVRTrackerNode has been
+modified so that it extends X3DChildNode rather than  X3DNode. Candy expects
+its PythonScripts to be in C:\H3D\Plugins\python, which is specified in C:\H3D\H3DAPI\index.urn.
+Some pieces of code was also removed from Candy, to prevent unnecessary 
+dependencies on 3rd party libraries.
+
+vrpndll.dll
+This library is needed by Candy to interface with VRPN servers, which is needed for
+the VRPNTracker node in H3d.
+
+GraspTransform.dll
+This library allows for the use of GraspTransform, which is a special transform allowing
+for live movement of objects depending on inputs, such as buttons. This is used in ZSpace.py to move
+objects with the stylus.
+
+
+----EXAMPLES----
+example.x3d
+This scene includes a simple red cube, which can be picked up using the main button on the stylus.
+
+fish\Kumanomi.x3d
+This is a simple scene that is an example model of a fish, which has been modified for HeadTracking.
+
+tower\tower.x3d
+Rigid-body physics example modified for headtracking.
+
+----SOURCE-NOTES----
+The solution file for most of my code is Candy\build.win\Candy.sln
+
+----ISSUES----
+* The stylus is currently calibrated so that there is an on-screen representation of it, rather than an on screen extension as in the ZSpaceExperience.
+
+* When the screen is updated through headtracking, the on-screen stylus is moved in strange ways.
+
+* The stylus will always move nodes in the GraspTransform, even if it isn't touching the nodes.
+
+* GraspTransform doesn't work with RigidBodyPhysics yet.
+
+* Since I modified Candy, these tools can't be expected to run on any computer. The modifications may be better implemented as seperate classes.

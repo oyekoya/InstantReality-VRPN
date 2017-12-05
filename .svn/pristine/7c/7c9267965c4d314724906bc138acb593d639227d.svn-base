@@ -1,0 +1,1201 @@
+/**
+   Copyright 2006-2008, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include <Candy/FiniteStateMachine.hh>
+
+#ifdef HAVE_XERCES
+
+#include <vector>
+#include <string.h>
+#include <sstream>
+
+#include <H3D/Scene.h>
+#include <H3DUtil/Exception.h>
+
+#include <xercesc/sax/HandlerBase.hpp>
+#include <xercesc/util/XMLString.hpp>
+#include <xercesc/parsers/SAXParser.hpp>
+
+XERCES_CPP_NAMESPACE_USE
+
+using namespace Candy;
+using namespace H3D;
+using namespace H3DUtil;
+
+
+H3DNodeDatabase FiniteStateMachine::database
+( "FiniteStateMachine",
+  &(newInstance<FiniteStateMachine>),
+  typeid( FiniteStateMachine ),
+  &X3DChildNode::database );
+
+namespace FiniteStateMachineInternals {
+  FIELDDB_ELEMENT( FiniteStateMachine, url,        INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( FiniteStateMachine, stateId,    OUTPUT_ONLY );
+  FIELDDB_ELEMENT( FiniteStateMachine, stateIds,   OUTPUT_ONLY );
+  FIELDDB_ELEMENT( FiniteStateMachine, stateName,  OUTPUT_ONLY );
+  FIELDDB_ELEMENT( FiniteStateMachine, stateNames, OUTPUT_ONLY );
+  FIELDDB_ELEMENT( FiniteStateMachine, deterministic, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( FiniteStateMachine, persistent, INPUT_OUTPUT );
+}
+
+
+FiniteStateMachine::FiniteStateMachine
+( Inst< SFNode     > _metadata,
+  Inst< MFString   > _url,
+  
+  Inst< StateId    > _stateId,
+  Inst< StateIds   > _stateIds,
+  Inst< StateName  > _stateName,
+  Inst< StateNames > _stateNames,
+  
+  Inst< SFBool     > _deterministic,
+  Inst< SFBool     > _persistent )
+  
+  : X3DChildNode(_metadata),
+    X3DUrlObject(_url),
+    H3DDynamicFieldsObject( &database ),
+    stateId( _stateId ),
+    stateIds( _stateIds ),
+    stateName( _stateName ),
+    stateNames( _stateNames ),
+    deterministic( _deterministic ),
+    persistent( _persistent ),
+    parse_state(0),
+    parse_transition(0) {
+  
+  type_name = "FiniteStateMachine";
+  database.initFields( this );
+  
+  deterministic->setValue(true,id);
+  persistent->setValue(true,id);
+  
+  deterministic->routeNoEvent(stateIds,id);
+  persistent->routeNoEvent(stateIds,id);
+  Scene::time->routeNoEvent(stateIds,id);
+  
+  stateIds->routeNoEvent(Scene::eventSink,id);
+  
+  stateIds->routeNoEvent(stateId,id);
+  stateIds->routeNoEvent(stateNames,id);
+  stateNames->routeNoEvent(stateName,id);
+}
+
+
+void FiniteStateMachine::StateNames::update(){
+  std::vector<std::string> names;
+  const std::vector<int> &ids =
+    static_cast<H3D::MFInt32*>
+    (routes_in[0])->getValue();
+  for( std::vector<int>::const_iterator i = ids.begin() ;
+       i != ids.end() ; i++ ){
+    names.push_back( static_cast<FiniteStateMachine*>
+                     (owner)->state_names[*i] );
+  }
+  value.swap(names);
+}
+
+
+FiniteStateMachine::multi_condition_t::~multi_condition_t(){
+  for( std::vector<condition_t*>::iterator i = conditions.begin() ;
+       i != conditions.end() ; i++ ){
+    delete *i; }
+}
+
+bool FiniteStateMachine::and_condition_t::evaluate(double t){
+  bool result = true;
+  for( std::vector<condition_t*>::iterator i = conditions.begin() ;
+       i != conditions.end() ; i++ ){
+    if( ! (*i)->evaluate(t) ){
+      result = false; }
+  }
+  return result;
+}
+
+bool FiniteStateMachine::or_condition_t::evaluate(double t){
+  bool result = false;
+  for( std::vector<condition_t*>::iterator i = conditions.begin() ;
+       i != conditions.end() ; i++ ){
+    if( (*i)->evaluate(t) ){
+      result = true; }}
+  return result;
+}
+
+bool FiniteStateMachine::xor_condition_t::evaluate(double t){
+  int N = 0;
+  for( std::vector<condition_t*>::iterator i = conditions.begin() ;
+       i != conditions.end() ; i++ ){
+    if( (*i)->evaluate(t) ){
+      N++; }}
+  return N==1;
+}
+
+bool FiniteStateMachine::timer_t::evaluate(double t){
+  if( field ){
+    field->setValue(std::min(1.0,(t-start)/delay)); }
+  return t-start > delay;
+}
+
+FiniteStateMachine::state_t::~state_t(){
+  for( std::vector< transition_t* >::iterator i = transitions.begin() ;
+       i != transitions.end() ; i++ ){
+    delete *i; }
+  for( std::vector< event_t* >::iterator i = events.begin() ;
+       i != events.end() ; i++ ){
+    delete *i; }
+}
+
+
+void FiniteStateMachine::StateIds::update(){
+  if( routes_in.size() < 3 ){
+    return; }
+  
+  std::map<int,std::string> &state_names =
+    static_cast<FiniteStateMachine*>
+    (owner)->state_names;
+  bool deterministic =
+    static_cast<SFBool*>(routes_in[0])->getValue();
+  bool persistent =
+    static_cast<SFBool*>(routes_in[1])->getValue();
+  double time = 
+    static_cast<SFTime*>(routes_in[2])->getValue();
+  
+  FiniteStateMachine *parent = static_cast<FiniteStateMachine*>(owner);
+  
+  std::vector<int> new_states;
+  for( std::vector<int>::iterator state = value.begin() ;
+       state != value.end() ; state++ ){
+    
+    bool active_transition = false;
+    int s_id = *state;
+    
+    state_t &c_state = parent->states[s_id];
+    for( std::vector< transition_t* >::iterator trans
+           = c_state.transitions.begin() ;
+         trans != c_state.transitions.end() ; trans++ ){
+      
+      // Check if this is a valid transition
+      if( !(*trans)->condition ||
+          (*trans)->condition->evaluate(time) ){
+        
+        active_transition = true;
+        int t_id = (*trans)->target_id;
+        
+        CANDY_DEBUG_LOG_I("transition( " << state_names[s_id]
+                          << " -> " << state_names[t_id] << " )");
+        
+        // Exit events:
+        for( std::vector< event_t* >::iterator event
+               = c_state.events.begin() ;
+             event != c_state.events.end() ; event++ ){
+          if( (*event)->type == FiniteStateMachine::EVENT_EXIT ){
+            (*event)->execute(); }
+        }
+        
+        // Transition events:
+        for( std::vector< event_t* >::iterator event
+               = (*trans)->events.begin() ;
+             event != (*trans)->events.end() ; event++ ){
+          (*event)->execute();
+        }
+        
+        // Enter events:
+        state_t &t_state = parent->states[t_id];
+        for( std::vector< event_t* >::iterator event
+               = t_state.events.begin() ;
+             event != t_state.events.end() ; event++ ){
+          if( (*event)->type == FiniteStateMachine::EVENT_ENTRY ){
+            (*event)->execute(); }
+        }
+        for( std::vector< transition_t* >::iterator trans
+               = t_state.transitions.begin() ;
+             trans != t_state.transitions.end() ; trans++ ){
+          if( (*trans)->condition ){
+            (*trans)->condition->initialize(time); }
+        }
+        
+        if( !parent->states[t_id].accept ){
+          new_states.push_back(t_id);
+          
+          if( deterministic ){
+            value.swap( new_states );
+            return;
+          }
+        }
+      }
+    }
+    
+    if( !active_transition  ){
+      if( persistent ){
+        new_states.push_back( s_id ); }
+      else {
+        for( std::vector< event_t* >::iterator event
+               = c_state.events.begin() ;
+             event != c_state.events.end() ; event++ ){
+          if( (*event)->type == FiniteStateMachine::EVENT_ACCEPT ){
+            (*event)->execute(); }
+        }
+      }
+    }
+  }
+  
+  if( !deterministic ){
+    
+    // Calculate union of start_states and new states
+    for( std::vector<int>::iterator a = parent->start_states.begin() ;
+         a != parent->start_states.end() ; a++ ){
+      
+      bool in_there = false;
+      
+      for( std::vector<int>::iterator b = new_states.begin() ;
+           b != new_states.end() ; b++ ){
+        if( *a == *b ){
+          in_there = true;
+          break;
+        }
+      }
+      
+      if( !in_there ){
+        
+        new_states.push_back( *a );
+        
+        state_t &c_state = parent->states[*a];
+        for( std::vector< event_t* >::iterator event
+               = c_state.events.begin() ;
+             event != c_state.events.end() ; event++ ){
+          if( (*event)->type == FiniteStateMachine::EVENT_START ){
+            (*event)->execute(); }
+        }
+        for( std::vector< transition_t* >::iterator trans
+               = c_state.transitions.begin() ;
+             trans != c_state.transitions.end() ; trans++ ){
+          if( (*trans)->condition ){
+            (*trans)->condition->initialize(time); }
+        }
+      }
+    }
+  }
+  else if( !new_states.size() && parent->start_states.size() ){
+    // deterministic and no new states
+    
+    new_states.push_back( parent->start_states[0] );
+    
+    state_t &c_state = parent->states[parent->start_states[0]];
+    for( std::vector< event_t* >::iterator event
+           = c_state.events.begin() ;
+         event != c_state.events.end() ; event++ ){
+      if( (*event)->type == FiniteStateMachine::EVENT_START ){
+        (*event)->execute(); }
+    }
+    for( std::vector< transition_t* >::iterator trans
+           = c_state.transitions.begin() ;
+         trans != c_state.transitions.end() ; trans++ ){
+      if( (*trans)->condition ){
+        (*trans)->condition->initialize(time); }
+    }
+  }
+  
+  value.swap( new_states );
+}
+
+
+void FiniteStateMachine::initialize(){
+  X3DChildNode::initialize();
+  
+  typedef std::vector<std::string> strings_t;
+  const strings_t &urls
+    = url->getValue(id);
+  
+  std::string file;
+  for( strings_t::const_iterator url = urls.begin() ;
+       url != urls.end() ; url++ ){
+    if( (file = resolveURLAsFile(*url)).size() ){
+      break; }}
+  
+  if( !file.size() ){
+    CANDY_RUNTIME_WARNING( getName(),
+                           "None of the provided URLs"
+                           " could be read!" );
+    return;
+  }
+  
+  parser = new SAXParser();
+  parser->setDoNamespaces(true);
+  
+  parser->setDocumentHandler(static_cast<DocumentHandler*>(this));
+  parser->setErrorHandler((ErrorHandler*)this);
+  
+  try {
+    parser->parse(file.c_str());
+  }
+  catch( const XMLException& toCatch ){
+    char* message = XMLString::transcode(toCatch.getMessage());
+    std::cerr << "XML: Exception message is: \n"
+              << message << std::endl;
+    XMLString::release(&message);
+    exit(1);
+  }
+  catch(const SAXParseException& toCatch ){
+    char* message = XMLString::transcode(toCatch.getMessage());
+    std::cerr << "XML: Exception message is: \n"
+              << message << std::endl;
+    XMLString::release(&message);
+    exit(1);
+  }
+  catch(const Exception::H3DException &e){
+    std::cerr << "H3D Exception " << e << std::endl;
+    exit(1);
+  }
+  catch(const std::exception &e){
+    std::cerr << "XML: Unexpected Exception " << e.what() << std::endl;
+    exit(1);
+  }
+  catch( ... ){
+    std::cerr << "XML: Unexpected Exception \n" ;
+    exit(1);
+  }
+  
+  delete parser;
+}
+
+#define PARSE_ERROR(STR) std::cerr << "XML Error: " << STR << " @" << parser->getSrcOffset() << std::endl; exit(1); //
+
+void FiniteStateMachine::startDocument(){
+  parse_state = 0;
+  parse_transition = 0;
+  while( !parse_condition.empty() ){
+    parse_condition.pop(); }
+}
+
+void FiniteStateMachine::startElement( const XMLCh* const _name,
+                                       AttributeList& atts ){
+  char* name = XMLString::transcode(_name);
+  
+  if( !strcmp(name,"state") ){
+    char* state_id = XMLString::transcode(atts.getValue("id"));
+    char* name = XMLString::transcode(atts.getValue("name"));
+    char* type = XMLString::transcode(atts.getValue("type"));
+    
+    if( !(state_id || name) ){
+      PARSE_ERROR("missing state id or state name"); }
+    
+    int idi = state_id ? atoi(state_id) : state_ids.size()+1;
+    
+    state_t st;
+    st.accept = false;
+    if( name ){
+      st.name = std::string( name ); }
+    else{
+      std::stringstream ss;
+      ss << "<UNNAMED STATE " << idi << ">";
+      st.name = ss.str();
+    }
+    
+    if( type && !strcmp(type,"start") ){
+      start_states.push_back(idi); }
+    else if( type && !strcmp(type,"accept") ){
+      st.accept = true; }
+    
+    states[idi] = st;
+    state_ids[st.name] = idi;
+    state_names[idi] = st.name;
+    parse_state = &states[idi];
+    
+    if( name ){
+      XMLString::release(&name); }
+    if( state_id ){
+      XMLString::release(&state_id); }
+    if( type ){
+      XMLString::release(&type); }
+  }
+  else if( !strcmp(name,"transition") ){
+    char* from = XMLString::transcode(atts.getValue("from"));
+    char* to = XMLString::transcode(atts.getValue("to"));
+    
+    if( !from || !to ){
+      PARSE_ERROR("missing transition attribute"); }
+    
+    int from_i = state_ids.count(from) ?
+      state_ids[from] : atoi(from);
+    
+    if( !states.count(from_i) ){
+      PARSE_ERROR("missing 'from' state "
+                  << "'" << from << "'"); }
+    
+    int to_i = state_ids.count(to) ?
+      state_ids[to] : atoi(to);
+    
+    if( !states.count(to_i) ){
+      PARSE_ERROR("missing 'to' state "
+                  << "'" << to << "'"); }
+    
+    transition_t *tr = new transition_t;
+    tr->target_id = to_i;
+    states[from_i].transitions.push_back(tr);
+    
+    parse_transition = tr;
+    
+    XMLString::release(&from);
+    XMLString::release(&to);
+  }
+  else if( !strcmp(name,"event") ){
+    char* field = XMLString::transcode(atts.getValue("field"));
+    char* field2 = XMLString::transcode(atts.getValue("field2"));
+    char* value = XMLString::transcode(atts.getValue("value"));
+    char* type = XMLString::transcode(atts.getValue("type"));
+    char* trigger = XMLString::transcode(atts.getValue("trigger"));
+    
+    if( !type || !field ||
+        !(value || field2) ||
+        !(parse_state || parse_transition) ){
+      PARSE_ERROR("missing event attribute"); }
+    
+    if( !strcmp(type,"string") ){
+      event_value_t<SFString,std::string> *evt =
+        new event_value_t<SFString,std::string>;
+      evt->type = !trigger ? EVENT_ENTRY :
+        !strcmp(trigger,"start") ? EVENT_START :
+        !strcmp(trigger,"exit") ? EVENT_EXIT :
+        !strcmp(trigger,"accept") ? EVENT_ACCEPT : EVENT_ENTRY;
+      
+      if( parse_state ){
+        parse_state->events.push_back(evt); }
+      else if( parse_transition ){
+        parse_transition->events.push_back(evt); }
+      else {
+        PARSE_ERROR("event outside state or transition"); }
+      
+      Field *f = database.getField(this,field);
+      SFString *fs;
+      if( f ){
+        fs = dynamic_cast<SFString*>(f);
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }}
+      else {
+        fs = new SFString("");
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }}
+      evt->field = fs;
+      
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFString *fs = dynamic_cast<SFString*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          evt->field2 = fs;
+        }
+        else {
+          SFString *fs = new SFString("");
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          evt->field2 = fs;
+        }
+      }
+      else {
+        evt->value = value;
+      }
+    }
+    else if( !strcmp(type,"int") ){
+      event_value_t<SFInt32,int> *evt =
+        new event_value_t<SFInt32,int>;
+      evt->type = !trigger ? EVENT_ENTRY :
+        !strcmp(trigger,"start") ? EVENT_START :
+        !strcmp(trigger,"exit") ? EVENT_EXIT :
+        !strcmp(trigger,"accept") ? EVENT_ACCEPT : EVENT_ENTRY;
+
+      if( parse_state ){
+        parse_state->events.push_back(evt); }
+      else if( parse_transition ){
+        parse_transition->events.push_back(evt); }
+      else {
+        PARSE_ERROR("event outside state or transition"); }
+      
+      Field *f = database.getField(this,field);
+      SFInt32 *fs;
+      if( f ){
+        fs = dynamic_cast<SFInt32*>(f);
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }}
+      else {
+        fs = new SFInt32(0);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }}
+      evt->field = fs;
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFInt32 *fs = dynamic_cast<SFInt32*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          evt->field2 = fs;
+        }
+        else {
+          SFInt32 *fs = new SFInt32(0);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          evt->field2 = fs;
+        }
+      }
+      else {
+        evt->value = atoi(value);
+      }
+    }
+    else if( !strcmp(type,"float") ){
+      event_value_t<SFFloat,float> *evt =
+        new event_value_t<SFFloat,float>;
+      evt->type = !trigger ? EVENT_ENTRY :
+        !strcmp(trigger,"start") ? EVENT_START :
+        !strcmp(trigger,"exit") ? EVENT_EXIT :
+        !strcmp(trigger,"accept") ? EVENT_ACCEPT : EVENT_ENTRY;
+
+      if( parse_state ){
+        parse_state->events.push_back(evt); }
+      else if( parse_transition ){
+        parse_transition->events.push_back(evt); }
+      else {
+        PARSE_ERROR("event outside state or transition"); }
+      
+      Field *f = database.getField(this,field);
+      SFFloat *fs;
+      if( f ){
+        fs = dynamic_cast<SFFloat*>(f);
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }}
+      else {
+        fs = new SFFloat(0.f);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }}
+      evt->field = fs;
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFFloat *fs = dynamic_cast<SFFloat*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          evt->field2 = fs;
+        }
+        else {
+          SFFloat *fs = new SFFloat(0.f);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          evt->field2 = fs;
+        }
+      }
+      else {
+        evt->value = atof(value);
+      }
+    }
+    else if( !strcmp(type,"double") ){
+      event_value_t<SFDouble,double> *evt =
+        new event_value_t<SFDouble,double>;
+      evt->type = !trigger ? EVENT_ENTRY :
+        !strcmp(trigger,"start") ? EVENT_START :
+        !strcmp(trigger,"exit") ? EVENT_EXIT :
+        !strcmp(trigger,"accept") ? EVENT_ACCEPT : EVENT_ENTRY;
+
+      if( parse_state ){
+        parse_state->events.push_back(evt); }
+      else if( parse_transition ){
+        parse_transition->events.push_back(evt); }
+      else {
+        PARSE_ERROR("event outside state or transition"); }
+      
+      Field *f = database.getField(this,field);
+      SFDouble *fs;
+      if( f ){
+        fs = dynamic_cast<SFDouble*>(f);
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }}
+      else {
+        fs = new SFDouble(.0);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }}
+      evt->field = fs;
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFDouble *fs = dynamic_cast<SFDouble*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          evt->field2 = fs;
+        }
+        else {
+          SFDouble *fs = new SFDouble(.0);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          evt->field2 = fs;
+        }
+      }
+      else {
+        evt->value = atof(value);
+      }
+    }
+    else if( !strcmp(type,"bool") ){
+      event_value_t<SFBool,bool> *evt =
+        new event_value_t<SFBool,bool>;
+      evt->type = !trigger ? EVENT_ENTRY :
+        !strcmp(trigger,"start") ? EVENT_START :
+        !strcmp(trigger,"exit") ? EVENT_EXIT :
+        !strcmp(trigger,"accept") ? EVENT_ACCEPT : EVENT_ENTRY;
+
+      if( parse_state ){
+        parse_state->events.push_back(evt); }
+      else if( parse_transition ){
+        parse_transition->events.push_back(evt); }
+      else {
+        PARSE_ERROR("event outside state or transition"); }
+      
+      Field *f = database.getField(this,field);
+      SFBool *fs;
+      if( f ){
+        fs = dynamic_cast<SFBool*>(f);
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }}
+      else {
+        fs = new SFBool(false);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }}
+      evt->field = fs;
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFBool *fs = dynamic_cast<SFBool*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          evt->field2 = fs;
+        }
+        else {
+          SFBool *fs = new SFBool(false);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          evt->field2 = fs;
+        }
+      }
+      else {
+        evt->value =
+          !strcmp(value,"true") ||
+          !strcmp(value,"1") ||
+          !strcmp(value,"TRUE") ||
+          !strcmp(value,"True");
+      }
+    }
+       
+    XMLString::release(&field);
+    if( field2 ){
+      XMLString::release(&field2); }
+    if( value ){
+      XMLString::release(&value); }
+    XMLString::release(&type);
+    if( trigger ){
+      XMLString::release(&trigger); }
+  }
+  
+  else if( !strcmp(name,"and") ||
+           !strcmp(name,"or") ||
+           !strcmp(name,"xor") ||
+           !strcmp(name,"not") ){
+    multi_condition_t *cond =
+      !strcmp(name,"and") ? (multi_condition_t*)new and_condition_t :
+      !strcmp(name,"or")  ? (multi_condition_t*)new or_condition_t :
+      !strcmp(name,"xor") ? (multi_condition_t*)new xor_condition_t :
+      !strcmp(name,"not") ? (multi_condition_t*)new not_condition_t : 0;
+    assert(cond);
+    if( parse_condition.size() ){
+      parse_condition.top()->conditions.push_back(cond); }
+    else {
+      if( !parse_transition ){
+        PARSE_ERROR("tag order violation"); }
+      parse_transition->condition = cond;
+    }
+    parse_condition.push(cond);
+  }
+  
+  else if( !strcmp(name,"timer") ){
+    char* delay = XMLString::transcode(atts.getValue("delay"));
+    char* field = XMLString::transcode(atts.getValue("field"));
+    
+    if( !delay || !( parse_condition.size() ||
+                     parse_transition ) ){
+      PARSE_ERROR(name << " tag missing attribute or tag order violation"); }
+    
+    timer_t *cond = new timer_t;
+    
+    if( parse_condition.size() ){
+      parse_condition.top()->conditions.push_back(cond); }
+    else {
+      parse_transition->condition = cond; }
+    
+    cond->delay = atof(delay);
+    
+    if( field ){
+      Field *f = database.getField(this,field);
+      if( f ){
+        SFFloat *fs = dynamic_cast<SFFloat*>(f);
+        
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }
+        
+        cond->field = fs;
+      }
+      else {
+        SFFloat *fs = new SFFloat(0.f);
+        
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }
+        
+        cond->field = fs;
+      }
+      XMLString::release(&field);
+    }
+    else{
+      cond->field = 0; }
+    XMLString::release(&delay);
+  }
+    
+  else if( !strcmp(name,"eq") ||
+           !strcmp(name,"leq") ||
+           !strcmp(name,"geq") ||
+           !strcmp(name,"lt") ||
+           !strcmp(name,"gt") ){
+    char* field = XMLString::transcode(atts.getValue("field"));
+    char* field2 = XMLString::transcode(atts.getValue("field2"));
+    char* value = XMLString::transcode(atts.getValue("value"));
+    char* type = XMLString::transcode(atts.getValue("type"));
+    
+    if( !field || !type || !( field2 || value ) ||
+        !( parse_transition || parse_condition.size() ) ){
+      PARSE_ERROR(name << " tag missing attribute or tag order violation"); }
+    
+    if( !strcmp(type,"string") ){
+      cmp_condition_t< SFString, std::string > *cond = 0;
+      
+      if( !strcmp(name,"eq") ){
+        cond = new cmp_func_condition_t
+          < SFString, std::string, std::equal_to<std::string> >; }
+      else if( !strcmp(name,"leq") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange string comparison!");
+        cond = new cmp_func_condition_t
+          < SFString, std::string, std::less_equal<std::string> >; }
+      else if( !strcmp(name,"geq") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange string comparison!");
+        cond = new cmp_func_condition_t
+          < SFString, std::string, std::greater_equal<std::string> >; }
+      else if( !strcmp(name,"lt") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange string comparison!");
+        cond = new cmp_func_condition_t
+          < SFString, std::string, std::less<std::string> >; }
+      else if( !strcmp(name,"gt") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange string comparison!");
+        cond = new cmp_func_condition_t
+          < SFString, std::string, std::greater<std::string> >; }
+      assert(cond);
+      
+      if( parse_condition.size() ){
+        parse_condition.top()->conditions.push_back(cond); }
+      else {
+        parse_transition->condition = cond; }
+      
+      Field *f1 = database.getField(this,field);
+      if( f1 ){
+        SFString *fs = dynamic_cast<SFString*>(f1);
+        
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }
+        
+        cond->field = fs;
+      }
+      else {
+        SFString *fs = new SFString("");
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }
+        
+        cond->field = fs;
+      }
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFString *fs = dynamic_cast<SFString*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          cond->field2 = fs;
+        }
+        else {
+          SFString *fs = new SFString("");
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          cond->field2 = fs;
+        }
+      }
+      else {
+        cond->value = value;
+      }
+      
+      XMLString::release(&field);
+      XMLString::release(&type);
+      if( field2 ){
+        XMLString::release(&field2); }
+      if( value ){
+        XMLString::release(&value); }
+    }
+    
+    else if( !strcmp(type,"int") ){
+      cmp_condition_t< SFInt32, int > *cond = 0;
+      
+      if( !strcmp(name,"eq") ){
+        cond = new cmp_func_condition_t
+          < SFInt32, int, std::equal_to<int> >; }
+      else if( !strcmp(name,"leq") ){
+        cond = new cmp_func_condition_t
+          < SFInt32, int, std::less_equal<int> >; }
+      else if( !strcmp(name,"geq") ){
+        cond = new cmp_func_condition_t
+          < SFInt32, int, std::greater_equal<int> >; }
+      else if( !strcmp(name,"lt") ){
+        cond = new cmp_func_condition_t
+          < SFInt32, int, std::less<int> >; }
+      else if( !strcmp(name,"gt") ){
+        cond = new cmp_func_condition_t
+          < SFInt32, int, std::greater<int> >; }
+      assert(cond);
+      
+      if( parse_condition.size() ){
+        parse_condition.top()->conditions.push_back(cond); }
+      else {
+        parse_transition->condition = cond; }
+      
+      Field *f1 = database.getField(this,field);
+      if( f1 ){
+        SFInt32 *fs = dynamic_cast<SFInt32*>(f1);
+        
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }
+        
+        cond->field = fs;
+      }
+      else {
+        SFInt32 *fs = new SFInt32(0);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }
+        
+        cond->field = fs;
+      }
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFInt32 *fs = dynamic_cast<SFInt32*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          cond->field2 = fs;
+        }
+        else {
+          SFInt32 *fs = new SFInt32(0);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          cond->field2 = fs;
+        }
+      }
+      else {
+        cond->value = atoi(value);
+      }
+    }
+    
+    else if( !strcmp(type,"float") ){
+      cmp_condition_t< SFFloat, float > *cond = 0;
+      
+      if( !strcmp(name,"eq") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange float comparison!");
+        cond = new cmp_func_condition_t
+          < SFFloat, float, std::equal_to<float> >; }
+      else if( !strcmp(name,"leq") ){
+        cond = new cmp_func_condition_t
+          < SFFloat, float, std::less_equal<float> >; }
+      else if( !strcmp(name,"geq") ){
+        cond = new cmp_func_condition_t
+          < SFFloat, float, std::greater_equal<float> >; }
+      else if( !strcmp(name,"lt") ){
+        cond = new cmp_func_condition_t
+          < SFFloat, float, std::less<float> >; }
+      else if( !strcmp(name,"gt") ){
+        cond = new cmp_func_condition_t
+          < SFFloat, float, std::greater<float> >; }
+      assert(cond);
+      
+      if( parse_condition.size() ){
+        parse_condition.top()->conditions.push_back(cond); }
+      else {
+        parse_transition->condition = cond; }
+      
+      Field *f1 = database.getField(this,field);
+      if( f1 ){
+        SFFloat *fs = dynamic_cast<SFFloat*>(f1);
+        
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }
+        
+        cond->field = fs;
+      }
+      else {
+        SFFloat *fs = new SFFloat(0.f);
+        fs->setValue(0.f);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }
+        
+        cond->field = fs;
+      }
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFFloat *fs = dynamic_cast<SFFloat*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          cond->field2 = fs;
+        }
+        else {
+          SFFloat *fs = new SFFloat(0.f);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          cond->field2 = fs;
+        }
+      }
+      else {
+        cond->value = atof(value);
+      }
+      
+    }
+    
+    else if( !strcmp(type,"double") ){
+      cmp_condition_t< SFDouble, double > *cond = 0;
+      
+      if( !strcmp(name,"eq") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange float comparison!");
+        cond = new cmp_func_condition_t
+          < SFDouble, double, std::equal_to<double> >; }
+      else if( !strcmp(name,"leq") ){
+        cond = new cmp_func_condition_t
+          < SFDouble, double, std::less_equal<double> >; }
+      else if( !strcmp(name,"geq") ){
+        cond = new cmp_func_condition_t
+          < SFDouble, double, std::greater_equal<double> >; }
+      else if( !strcmp(name,"lt") ){
+        cond = new cmp_func_condition_t
+          < SFDouble, double, std::less<double> >; }
+      else if( !strcmp(name,"gt") ){
+        cond = new cmp_func_condition_t
+          < SFDouble, double, std::greater<double> >; }
+      assert(cond);
+      
+      if( parse_condition.size() ){
+        parse_condition.top()->conditions.push_back(cond); }
+      else {
+        parse_transition->condition = cond; }
+      
+      Field *f1 = database.getField(this,field);
+      if( f1 ){
+        SFDouble *fs = dynamic_cast<SFDouble*>(f1);
+        
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }
+        
+        cond->field = fs;
+      }
+      else {
+        SFDouble *fs = new SFDouble(.0);
+        fs->setValue(0.f);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }
+        
+        cond->field = fs;
+      }
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFDouble *fs = dynamic_cast<SFDouble*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          cond->field2 = fs;
+        }
+        else {
+          SFDouble *fs = new SFDouble(.0);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          cond->field2 = fs;
+        }
+      }
+      else {
+        cond->value = atof(value);
+      }
+      
+    }
+    
+    else if( !strcmp(type,"bool") ){
+      cmp_condition_t< SFBool, bool > *cond = 0;
+      
+      if( !strcmp(name,"eq") ){
+        cond = new cmp_func_condition_t
+          < SFBool, bool, std::equal_to<bool> >; }
+      else if( !strcmp(name,"leq") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange boolean comparison!");
+        cond = new cmp_func_condition_t
+          < SFBool, bool, std::less_equal<bool> >; }
+      else if( !strcmp(name,"geq") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange boolean comparison!");
+        cond = new cmp_func_condition_t
+          < SFBool, bool, std::greater_equal<bool> >; }
+      else if( !strcmp(name,"lt") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange boolean comparison!");
+        cond = new cmp_func_condition_t
+          < SFBool, bool, std::less<bool> >; }
+      else if( !strcmp(name,"gt") ){
+        CANDY_RUNTIME_WARNING(getName(),
+                              "Warning: strange boolean comparison!");
+        cond = new cmp_func_condition_t
+          < SFBool, bool, std::greater<bool> >; }
+      assert(cond);
+      
+      if( parse_condition.size() ){
+        parse_condition.top()->conditions.push_back(cond); }
+      else {
+        parse_transition->condition = cond; }
+      
+      Field *f1 = database.getField(this,field);
+      if( f1 ){
+        SFBool *fs = dynamic_cast<SFBool*>(f1);
+        
+        if( !fs ){
+          PARSE_ERROR("field '" << field << "' type mismatch"); }
+        
+        cond->field = fs;
+      }
+      else {
+        SFBool *fs = new SFBool(false);
+        if( !addField( field, Field::INPUT_OUTPUT, fs ) ){
+          PARSE_ERROR("Unknown error while adding field!"); }
+        
+        cond->field = fs;
+      }
+      
+      if( field2 ){
+        Field *f2 = database.getField(this,field2);
+        if( f2 ){
+          SFBool *fs = dynamic_cast<SFBool*>(f2);
+          
+          if( !fs ){
+            PARSE_ERROR("field '" << field2 << "' type mismatch"); }
+          
+          cond->field2 = fs;
+        }
+        else {
+          SFBool *fs = new SFBool(false);
+          if( !addField( field2, Field::INPUT_OUTPUT, fs ) ){
+            PARSE_ERROR("Unknown error while adding field!"); }
+          
+          cond->field2 = fs;
+        }
+      }
+      else {
+        cond->value =
+          !strcmp(value,"true") ||
+          !strcmp(value,"1") ||
+          !strcmp(value,"TRUE") ||
+          !strcmp(value,"True");
+      }
+    }
+    
+    XMLString::release(&field);
+    if( field2 ){
+      XMLString::release(&field2); }
+    if( value ){
+      XMLString::release(&value); }
+    XMLString::release(&type);
+  }
+  
+  XMLString::release(&name);
+}
+
+void FiniteStateMachine::characters( const XMLCh* const chars,
+                                     const unsigned int length ){}
+
+void FiniteStateMachine::endElement( const XMLCh* const _name ){
+  char* name = XMLString::transcode(_name);
+  
+  if( !strcmp(name,"state") ){
+    parse_state = 0; }
+  else if( !strcmp(name,"transition") ){
+    parse_transition = 0; }
+  else if( !strcmp(name,"and") ||
+           !strcmp(name,"or") ||
+           !strcmp(name,"xor") ||
+           !strcmp(name,"not") ){
+    parse_condition.pop();
+  }
+  
+  XMLString::release(&name);
+}
+
+void FiniteStateMachine::endDocument(){}
+
+#endif

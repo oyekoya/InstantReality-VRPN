@@ -1,0 +1,45 @@
+#X3D V3.0 utf8
+
+Engine {
+jobs [
+  RenderJob { 
+    windowGroups [
+      WindowGroup {
+        windows [
+          LocalWindow {
+          buffer 4
+          size 1920 1080
+            views [
+              Viewarea {
+                leftBuffer TRUE
+                rightBuffer FALSE
+                modifier [
+                  ShearedStereoViewModifier {
+                    leftEye  TRUE
+                    rightEye FALSE
+					eyeSeparation 0.08   
+					#zeroParallaxDistance 1
+                  }
+                ]
+              }
+              Viewarea {
+                leftBuffer FALSE
+                rightBuffer TRUE
+                modifier [
+                  ShearedStereoViewModifier {
+                    leftEye  FALSE
+                    rightEye TRUE
+					eyeSeparation 0.08   
+					#zeroParallaxDistance 1
+                  }	
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }	
+]
+}
+

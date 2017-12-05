@@ -1,0 +1,106 @@
+/**
+
+Copyright 2009-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _HVR_VRPNTRACKER_HH_
+#define _HVR_VRPNTRACKER_HH_
+
+#include <HVR/HVR.hh>
+#include <HVR/HVRTrackerNode.hh>
+
+#include <H3D/X3DNode.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3DUtil/Threads.h>
+
+#include <H3D/SFString.h>
+#include <H3D/SFInt32.h>
+#include <H3D/SFTime.h>
+#include <H3D/SFBool.h>
+
+#include <vrpn_Tracker.h>
+#include <vrpn_Button.h>
+
+
+namespace HVR {
+  
+  /**
+     Tracker node that is using VRPN to read off information from
+     any supported tracker.
+  */
+  class HVR_API VRPNTracker
+    : public HVRTrackerNode {
+    
+    struct Collector
+      : H3D::TypedField< H3D::SFBool, H3D::SFTime > {
+      void update();
+    };
+    
+  public:
+    
+    VRPNTracker
+      ( H3D::Inst< H3D::SFNode > _metadata = 0,
+        H3D::Inst< EventSink > _eventSink = 0,
+        
+        H3D::Inst< TSSField(H3D::SFMatrix4f) > _rawMatrix = 0,
+        H3D::Inst< TSSField(H3D::SFVec3f) > _rawPosition = 0,
+        H3D::Inst< TSSField(H3D::SFRotation) > _rawOrientation = 0,
+        
+        H3D::Inst< CalibratedMatrix > _trackerMatrix = 0,
+        H3D::Inst< CalibratedPosition > _trackerPosition = 0,
+        H3D::Inst< CalibratedOrientation > _trackerOrientation = 0,
+        
+        H3D::Inst< H3D::SFMatrix4f > _positionCalibration = 0,
+        H3D::Inst< H3D::SFRotation > _orientationCalibration = 0,
+        
+        H3D::Inst< H3D::SFString > _connectionString = 0,
+        H3D::Inst< H3D::SFInt32 > _sensor = 0,
+        H3D::Inst< Collector > _collector  = 0,
+		H3D::Inst< H3D::SFBool > _mainButton = 0,
+		H3D::Inst< H3D::SFBool > _secondaryButton = 0);
+    
+    virtual ~VRPNTracker();
+    
+    void initialize();
+    
+    std::auto_ptr< H3D::SFString > connectionString;
+    
+    std::auto_ptr< H3D::SFInt32 > sensor;
+
+	std::auto_ptr< H3D::SFBool > mainButton;
+	std::auto_ptr< H3D::SFBool  > secondaryButton;
+    
+    std::auto_ptr< Collector > collector;
+    
+    static H3D::H3DNodeDatabase database;
+    
+  protected:
+    vrpn_Tracker_Remote *tracker;
+	vrpn_Button_Remote  *button;
+
+	static void VRPN_CALLBACK handle_button(void *userdata, const vrpn_BUTTONCB b);
+    static void VRPN_CALLBACK handle_tracker(void *userdata,const vrpn_TRACKERCB info);
+  };
+}
+
+#endif

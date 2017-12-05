@@ -1,0 +1,360 @@
+/**
+
+Copyright 2003-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+#include <HVR/KinectHighPointTracker.hh>
+
+#ifdef HAVE_FREENECT
+
+#undef NDEBUG
+#define CANDY_DEBUG_LEVEL 5
+
+#include <Candy/Debug.hh>
+#include <H3D/Scene.h>
+
+#include <stdio.h>
+
+#define PFLIST_N_SAMPLES 20
+#define PFLIST_N_MEAN 10
+
+using namespace H3D;
+using namespace HVR;
+
+KinectHighPointTracker *KinectHighPointTracker::instance = NULL;
+
+H3DNodeDatabase KinectHighPointTracker::database
+( "KinectHighPointTracker",
+  &(newInstance<KinectHighPointTracker>),
+  typeid( KinectHighPointTracker ),
+  &HVRTrackerNode::database );
+
+namespace KinectHighPointTrackerInternals {
+  FIELDDB_ELEMENT( KinectHighPointTracker, deviceId, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( KinectHighPointTracker, depthScaleFactor, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( KinectHighPointTracker, depthOffsetFactor, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( KinectHighPointTracker, trackingForegroundLimit, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( KinectHighPointTracker, kinectLED, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( KinectHighPointTracker, kinectAngle, INPUT_OUTPUT );
+}
+
+KinectHighPointTracker::KinectHighPointTracker
+( Inst< SFNode > _metadata,
+  Inst< EventSink > _eventSink,
+
+  Inst< TSSField(SFMatrix4f) > _rawMatrix,
+  Inst< TSSField(SFVec3f) > _rawPosition,
+  Inst< TSSField(SFRotation) > _rawOrientation,
+
+  Inst< CalibratedMatrix > _trackerMatrix,
+  Inst< CalibratedPosition > _trackerPosition,
+  Inst< CalibratedOrientation > _trackerOrientation,
+
+  Inst< SFMatrix4f > _positionCalibration,
+  Inst< SFRotation > _orientationCalibration,
+
+  Inst< SFInt32 > _deviceId,
+  Inst< SFFloat > _depthScaleFactor,
+  Inst< SFFloat > _depthOffsetFactor,
+  Inst< SFFloat > _trackingForegroundLimit,
+  Inst< KinectLED > _kinectLED,
+  Inst< KinectAngle > _kinectAngle,
+  Inst< Collector > _collector )
+  : HVRTrackerNode( _metadata,
+		    _eventSink,
+		    _rawMatrix,
+		    _rawPosition,
+		    _rawOrientation,
+		    _trackerMatrix,
+		    _trackerPosition,
+		    _trackerOrientation,
+		    _positionCalibration,
+		    _orientationCalibration ),
+
+    deviceId( _deviceId ),
+    depthScaleFactor( _depthScaleFactor ),
+    depthOffsetFactor( _depthOffsetFactor ),
+    trackingForegroundLimit(_trackingForegroundLimit),
+    kinectLED( _kinectLED ),
+    kinectAngle( _kinectAngle ),
+    collector( _collector ),
+    kinect_context(NULL),
+    kinect_device(NULL) {
+  
+  CANDY_DEBUG_LOG();
+  
+  type_name = "KinectHighPointTracker";
+  database.initFields(this);
+  
+  pflist.insert(pflist.end(),PFLIST_N_SAMPLES,Vec3f(0,0,0));
+  
+  deviceId->setValue(0,id);
+  depthScaleFactor->setValue(350,id);
+  depthOffsetFactor->setValue(1090,id);
+  trackingForegroundLimit->setValue(-1,id);
+
+  collector->setOwner(this);
+  collector->context = NULL;
+  Scene::time->route(collector);
+  collector->route(Scene::eventSink);
+  CANDY_DEBUG_LOG();
+}
+
+KinectHighPointTracker::~KinectHighPointTracker(){
+  CANDY_DEBUG_LOG();
+  if( kinect_device != NULL ){
+    freenect_stop_depth(kinect_device);
+    freenect_close_device(kinect_device);
+  }
+  if( kinect_context != NULL ){
+    freenect_shutdown(kinect_context);
+  }
+  CANDY_DEBUG_LOG();
+}
+
+void KinectHighPointTracker::initialize(){
+  CANDY_DEBUG_LOG();
+  if( instance != NULL ){
+    CANDY_RUNTIME_WARNING(getName(),"Cannot start a second KinectHighPointTracker!");
+    return;
+  }
+  instance = this;
+
+  if( freenect_init(&kinect_context, NULL) < 0 ){
+    CANDY_RUNTIME_WARNING(getName(),"Could not initialize context!");
+    kinect_context = NULL;
+    return;
+  }
+
+  collector->context = kinect_context;
+
+#ifndef NDEBUG
+  freenect_set_log_level(kinect_context, FREENECT_LOG_DEBUG);
+#endif
+
+  int N_devices = freenect_num_devices(kinect_context);
+  int device_id = deviceId->getValue();
+  if( device_id >= N_devices ){
+    CANDY_RUNTIME_WARNING(getName(),"Wrong device id " << device_id << " too high, " << N_devices << " devices found.");
+    return;
+  }
+
+  if( freenect_open_device( kinect_context,
+			    &kinect_device,
+			    device_id ) < 0 ){
+    CANDY_RUNTIME_WARNING(getName(),"Could not open device!");
+    kinect_device = NULL;
+    return;
+  }
+  freenect_set_tilt_degs(kinect_device,0);
+  freenect_set_led(kinect_device,LED_OFF);
+  freenect_set_depth_callback(kinect_device, callback);
+  freenect_set_depth_format(kinect_device, FREENECT_DEPTH_11BIT);
+  freenect_start_depth(kinect_device);
+  
+  kinectAngle->onValueChange(kinectAngle->getValue());
+  kinectLED->onValueChange(kinectLED->getValue());
+  
+  CANDY_DEBUG_LOG();
+}
+
+void KinectHighPointTracker::callback(freenect_device *dev, void *v_depth, uint32_t timestamp){
+  CANDY_DEBUG_LOG();
+  assert(instance!=NULL);
+  instance->depth_event(reinterpret_cast<uint16_t*>(v_depth));
+}
+
+#define WIDTH 640
+#define HEIGHT 480
+
+#define FOV_H 1.f
+#define FOV_V 0.75f
+
+#define EYE_TO_TOP 0.15
+
+namespace KinectHighPointTrackerInternals {
+  void point3Dto2D(const Vec3f &p, int &x, int &y) {
+    x = int(WIDTH*( .5f - p[0] / (2*::atan(0.5*FOV_H)*p[2]) ));
+    y = int(HEIGHT*( .5f - p[1] / (2*::atan(0.5*FOV_V)*p[2]) ));
+  }
+
+  Vec3f point2DtoLine(int x, int y) {
+    Vec3f v( 2*::atan(0.5*FOV_H)*(.5f-x/float(WIDTH)),
+             2*::atan(0.5*FOV_V)*(.5f-y/float(HEIGHT)), 1 );
+    v.normalize();
+    return v;
+  }
+  Quaternion fromVectorPair(const Vec3f &x,
+                            const Vec3f &y){
+    Vec3f xy = x % y;
+    float xyl = xy.length();
+    if( xyl < std::numeric_limits<float>::epsilon() ){
+      if( x*y > 0 ){
+        return Quaternion( Vec3f(0,0,0), 1 ); }
+      else {
+        return Quaternion( Vec3f(0,1,0), 0 ); }
+    }
+    else {
+      float xys = x * y;
+      return Quaternion( ( ::sqrt( 0.5f * (1-xys) )/xyl ) * xy,
+                         ( ::sqrt( 0.5f * (1+xys) )     ) );
+    }
+  }
+}
+using namespace KinectHighPointTrackerInternals;
+
+void KinectHighPointTracker::depth_event(uint16_t *cdepth){
+  freenect_update_tilt_state(kinect_device);
+  
+  CANDY_DEBUG_LOG();
+  
+  float paramA = depthScaleFactor->getValue();
+  float paramB = depthOffsetFactor->getValue();
+
+  float fdepth[WIDTH*HEIGHT];
+  for( int idx = 0 ; idx < WIDTH*HEIGHT ; ++idx ){
+    if( cdepth[idx] != 2047 ){
+      fdepth[idx] = paramA/(paramB-cdepth[idx]); }
+    else { fdepth[idx] = -1; }
+  }
+  
+  float limit_depth = trackingForegroundLimit->getValue();
+  if( limit_depth < 0 ){
+    CANDY_RUNTIME_WARNING(getName(),"Unknown distance to foreground");
+    return;
+  }
+  
+  int cx = -1, cy;
+  float D = -1;
+  for( int idx = 0 ; idx < WIDTH*HEIGHT ; idx++ ){
+    if( fdepth[idx] > 0 && fdepth[idx] < limit_depth ){
+      cy = idx/WIDTH;
+      cx = idx - cy*WIDTH;
+      D = fdepth[idx];
+      break;
+    }
+  }
+  
+  if( cx < 0 ){
+    CANDY_DEBUG_LOG_I("No object in foreground");
+    return;
+  }
+  
+  Vec3f v = D * point2DtoLine(cx,cy);
+#if 0
+  v.y -= EYE_TO_TOP;
+  
+  point3Dto2D(v,cx,cy);
+  if( cx<0 || cx >= WIDTH || cy<0 || cy >= HEIGHT ){
+    return;
+  }
+  
+  int i_x0, i_x1;
+  for( i_x0 = cx ; i_x0 >= 0 ; --i_x0 ){
+    if( fdepth[i_x0+WIDTH*cy] > limit_depth ){
+      break; }}
+  for( i_x1 = cx ; i_x1 < WIDTH ; ++i_x1 ){
+    if( fdepth[i_x1+WIDTH*cy] > limit_depth ){
+      break; }}
+  
+  if( i_x0 < 0 || i_x1 >= WIDTH ){
+    CANDY_DEBUG_LOG_I("Could not determine head center");
+    return;
+  }
+  
+  cx = 0.5f*(i_x0 + i_x1);
+  v = fdepth[cx+WIDTH*cy] * point2DtoLine(cx,cy);
+#endif
+
+  pflist.push_back(v);
+  pflist.pop_front();
+  
+  std::multimap<float,Vec3f> pfmap;
+  for( std::deque<Vec3f>::const_iterator it = pflist.begin() ;
+       it != pflist.end() ; ++it ){
+    pfmap.insert(std::pair<float,Vec3f>( (pfpos-*it).length(), *it )); }
+  
+  pfpos = Vec3f(0,0,0);
+  int idx = 0;
+  for( std::multimap<float,Vec3f>::const_iterator it = pfmap.begin() ;
+       it != pfmap.end() ; ++it ){
+    pfpos += it->second;
+    if( idx++ >= PFLIST_N_MEAN ){ break; }
+  }
+  pfpos *= 1.f/PFLIST_N_MEAN;
+
+  freenect_raw_tilt_state *state = freenect_get_tilt_state(kinect_device);
+  double dx,dy,dz;
+  freenect_get_mks_accel(state, &dx, &dy, &dz);
+  
+  Vec3f G(dx,dy,dz);
+  G.normalize();
+  Quaternion q = fromVectorPair(G,Vec3f(0,1,0));
+  
+  updateRawPositionOrientation( q*pfpos, Rotation() );
+}
+
+void KinectHighPointTracker::KinectLED::onValueChange(const int &led){
+  CANDY_DEBUG_LOG();
+  KinectHighPointTracker *tracker = dynamic_cast<KinectHighPointTracker*>(getOwner());
+  assert(tracker!=NULL);
+  if( tracker->kinect_device == NULL ){ return; }
+  switch(led){
+  case 1:
+    freenect_set_led(tracker->kinect_device,LED_GREEN);
+    break;
+  case 2:
+    freenect_set_led(tracker->kinect_device,LED_RED);
+    break;
+  case 3:
+    freenect_set_led(tracker->kinect_device,LED_YELLOW);
+    break;
+  case 4:
+  case 5:
+    freenect_set_led(tracker->kinect_device,LED_BLINK_GREEN);
+    break;
+  case 6:
+    freenect_set_led(tracker->kinect_device,LED_BLINK_RED_YELLOW);
+    break;
+  case 0:
+    freenect_set_led(tracker->kinect_device,LED_OFF);
+  }
+}
+
+void KinectHighPointTracker::KinectAngle::onValueChange(const float &angle){
+  CANDY_DEBUG_LOG();
+  KinectHighPointTracker *tracker = dynamic_cast<KinectHighPointTracker*>(getOwner());
+  assert(tracker!=NULL);
+  if( tracker->kinect_device != NULL ){
+    freenect_set_tilt_degs(tracker->kinect_device,angle); }
+}
+
+void KinectHighPointTracker::Collector::update(){
+  if( context != NULL ){
+    CANDY_DEBUG_LOG();
+    freenect_process_events(context);
+    CANDY_DEBUG_LOG();
+  }
+}
+
+
+#endif

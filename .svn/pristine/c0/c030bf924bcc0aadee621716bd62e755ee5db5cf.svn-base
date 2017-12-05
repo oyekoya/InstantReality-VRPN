@@ -1,0 +1,89 @@
+#ifndef __INSTANTIO_FooNODE_H
+#define __INSTANTIO_FooNODE_H
+
+// ========================================================================= //
+//                                                                           //
+// Filename: FooNode.h                                                    //
+//                                                                           //
+//                                                                           //
+// Author: Fraunhofer Institut fuer Graphische Datenverarbeitung (IGD)       //
+//         Department Virtual and Augmented Reality                          //
+//         Fraunhoferstrasse 5                                               //
+//         64283 Darmstadt, Germany                                          //
+//                                                                           //
+// Rights: Copyright (c) 2009 by Fraunhofer IGD.                             //
+//         All rights reserved.                                              //
+//         Fraunhofer IGD provides this product without warranty of any kind //
+//         and shall not be liable for any damages caused by the use         //
+//         of this product.                                                  //
+//                                                                           //
+// ========================================================================= //
+
+#include "FooNodeDef.h"
+
+#include <string>
+
+#include <InstantIO/ThreadedNode.h>
+#include <InstantIO/NodeType.h>
+#include <InstantIO/Rotation.h>
+#include <InstantIO/Vec3.h>
+
+namespace InstantIO
+{
+
+template <class T> class OutSlot;
+
+/**
+ * @class FooNode FooNode.h InstantIO/FooNode.h
+ *
+ * InstantIO-C++-template (www.instantreality.org)
+ */
+class FOONODE_DLLMAPPING FooNode : public ThreadedNode
+{
+public:
+    FooNode();
+    virtual ~FooNode();
+
+    // Create setter and getter methods for a field.
+    INSTANTIO_SETTER_GETTER(float, RandMax, randMax_);
+  
+    // Factory method to create an instance of FooNode.
+    static Node *create();
+  
+    // Factory method to return the type of FooNode.
+    virtual NodeType *type() const;
+  
+protected:
+    // Gets called when the FooNode is enabled.
+    virtual void initialize();
+  
+    // Gets called when the FooNode is disabled.
+    virtual void shutdown();
+  
+    // thread method to send/receive data.
+    virtual int processData ();
+  
+private:
+    FooNode(const FooNode &);
+    const FooNode &operator=(const FooNode &);
+  
+    // A "static" field of FooNode.
+    float randMax_;
+  
+    // Dynamic slots
+    OutSlot<Vec3f>    *position_;
+    OutSlot<Rotation> *rotation_;
+  
+    // Type and type attributes
+    static NodeType type_;
+    static const char *typeName_;
+    static const char *shortDescription_;
+    static const char *longDescription_;
+    static const char *author_;
+    static Field fields_[1];
+};
+
+} // namespace InstantIO
+
+
+#endif // __INSTANTIO_FooNODE_H

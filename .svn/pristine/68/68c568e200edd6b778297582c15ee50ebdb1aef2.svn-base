@@ -1,0 +1,272 @@
+/**
+
+Copyright 2007-2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+#include <HVR/ARToolkit.hh>
+
+#ifdef HAVE_ARTOOLKIT
+
+#include <Candy/Debug.hh>
+
+
+using namespace H3D;
+using namespace HVR;
+
+
+H3DNodeDatabase ARToolkit::database
+( "ARToolkit",
+  &(newInstance<ARToolkit>),
+  typeid( ARToolkit ),
+  &X3DBindableNode::database );
+
+namespace ARToolkitInternals {
+  FIELDDB_ELEMENT( ARToolkit, videoConfiguration, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( ARToolkit, cameraConfiguration, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( ARToolkit, markerConfiguration, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( ARToolkit, markerCenter, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ARToolkit, markerWidth, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ARToolkit, threshold, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ARToolkit, maxCameraRate, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( ARToolkit, drawByTexture, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( ARToolkit, drawHalfImage, INITIALIZE_ONLY );
+  FIELDDB_ELEMENT( ARToolkit, dataObsolete, OUTPUT_ONLY );
+}
+
+ARToolkit::ARToolkit()
+  : X3DBindableNode("ARToolkit"),
+    videoConfiguration( new SFString() ),
+    cameraConfiguration( new SFString("Data/camera_para.dat") ),
+    markerConfiguration( new MFString ),
+    markerCenter( new MFVec2d ),
+    markerWidth( new MFDouble ),
+    threshold( new SFInt32(100) ),
+    maxCameraRate( new SFFloat(100) ),
+    drawByTexture( new SFBool(true) ),
+    drawHalfImage( new SFBool(false) ),
+    dataObsolete( new Field ),
+    is_initialized(false),
+    gl_context(NULL),
+    last_time(0) {
+  CANDY_DEBUG_LOG();
+  
+  type_name = "ARToolkit";
+  database.initFields( this );
+  
+  maxCameraRate->setValue(-1,id);
+}
+
+ARToolkit::~ARToolkit() {
+  CANDY_DEBUG_LOG();
+  
+  if( gl_context != NULL ){
+    arglCleanup(gl_context);
+    gl_context = NULL;
+  }
+  
+  if( is_initialized ){
+    arVideoCapStop();
+    arVideoClose();
+    is_initialized = false;
+  }
+}
+
+void ARToolkit::initialize(){
+  X3DBindableNode::initialize();
+  
+  std::string video_config = videoConfiguration->getValue();
+  int video_config_len = video_config.length();
+  if( video_config_len > 0 ){
+    char conf[video_config_len+1];
+    strncpy(conf,video_config.c_str(),video_config_len+1);
+    if( arVideoOpen(conf) < 0 ){
+      return; }
+  }
+  else if( arVideoOpen(0) < 0 ){
+    return; }
+  
+  if( arVideoInqSize( size+0, size+1 ) < 0 ){
+    CANDY_RUNTIME_WARNING("ARToolkit",
+                          "Error while quering video.");
+    arVideoClose();
+    return;
+  }
+  
+  CANDY_DEBUG_LOG_I("Loading camera configuration from "
+                    <<cameraConfiguration->getValue());
+  ARParam wparam;
+  if( arParamLoad(cameraConfiguration->getValue().c_str(), 1, &wparam) < 0 ) {
+    CANDY_RUNTIME_WARNING("ARToolkit",
+                          "Error while loading camera configuration.");
+  }
+  
+  arParamChangeSize( &wparam, size[0], size[1], &camera );
+  arInitCparam( &camera );
+  
+  vector<string> marker_files = markerConfiguration->getValue();
+  int n_loaded = 0;
+  for( vector<string>::const_iterator i = marker_files.begin() ;
+       i != marker_files.end() ; i++ ){
+    int pattern_id;
+    if( ( pattern_id = arLoadPatt(i->c_str()) ) >= 0 ){
+      n_loaded++;
+      CANDY_DEBUG_LOG_I("Loaded pattern " << pattern_id 
+                        << " from " << *i << "");
+    }
+    else {
+      CANDY_RUNTIME_WARNING("ARToolkit",
+                            "Error while reading marker"
+                            " configuration from "<<*i); }
+  }
+  
+  CANDY_DEBUG_LOG();
+  if( ! n_loaded ){
+    CANDY_RUNTIME_WARNING("ARToolkit","Did not load any marker pattern.");
+  }
+  else {
+    CANDY_DEBUG_LOG_I("Loaded " << n_loaded << " patterns.");
+  }
+  
+  arUtilSleep(2);
+  if( arVideoCapStart() ){
+    CANDY_RUNTIME_WARNING("ARToolkit","Unable to start camera capture.");
+    arVideoClose();
+    return;
+  }
+  
+  is_initialized = true;
+  video_data = 0;
+}
+
+void ARToolkit::traverseSG( TraverseInfo &ti ){
+  X3DBindableNode::traverseSG( ti );
+  
+  H3DUtil::TimeStamp the_time = H3DUtil::TimeStamp::now();
+  
+  float delay = maxCameraRate->getValue() < 1
+    ? 1.f : float(1.0/maxCameraRate->getValue());
+  
+  if( video_data && (double)(the_time - last_time) > delay ){
+    arVideoCapNext();
+    video_data = 0;
+    last_time = the_time;
+    dataObsolete->touch();
+  }
+}
+
+bool ARToolkit::update(){
+  
+  if( video_data ){
+    return true; }
+  if( !is_initialized ){
+    return false; }
+  
+  if( video_data = (ARUint8 *)arVideoGetImage() ){
+    
+    int e = arDetectMarker( video_data,
+                            threshold->getValue(),
+                            &markers,
+                            &n_markers );
+    CANDY_DEBUG_LOG_I("DetectMarker: " << e);
+    if( e < 0 ) {
+      CANDY_RUNTIME_WARNING("ARToolkit","Error - stoping video capture.");
+      is_initialized = false;
+      arVideoCapStop();
+      arVideoClose();
+      return false;
+    }
+    return true;
+  }
+  return false;
+}
+
+void ARToolkit::renderCamera(float zoom){
+  if( !update() ){ return; }
+  if( gl_context == NULL ){
+    CANDY_DEBUG_LOG_I("Fetching GL context");
+    gl_context = arglSetupForCurrentContext();
+    
+    glDisable(GL_DEPTH_TEST);// Does this make any difference?
+    
+    if( drawByTexture->getValue() ){
+      arglDrawModeSet(gl_context, AR_DRAW_BY_TEXTURE_MAPPING);
+    }
+    else{
+      arglDrawModeSet(gl_context, AR_DRAW_BY_GL_DRAW_PIXELS);
+    }
+    
+    if( drawHalfImage->getValue() ){
+      arglTexmapModeSet(gl_context, AR_DRAW_TEXTURE_HALF_IMAGE);
+    }
+    else{
+      arglTexmapModeSet(gl_context, AR_DRAW_TEXTURE_FULL_IMAGE);
+    }
+    
+    if( !gl_context ){
+      CANDY_RUNTIME_WARNING_ONCE( "ARToolkit",
+                                  "Could not find GL context for "
+                                  "rendering see-through background.");
+    }
+  }
+  arglDispImage( video_data, &camera, zoom, gl_context );
+}
+
+bool ARToolkit::getMarker(int idx, Matrix4f &m, bool cont){
+  if( !update() ){ return false; }
+  for( int i = 0 ; i < n_markers ; i++ ){
+    if( markers[i].id == idx ){
+      
+      Vec2d patt_center = markerCenter->size() > i ? 
+        markerCenter->getValue()[i] : Vec2d(0,0);
+      
+      double patt_width = markerWidth->size() > i ?
+        1000 * markerWidth->getValue()[i] : 80.f;
+      
+      double T[3][4];
+      if( cont ){
+        T[0][0] = m[0][0]; T[1][0] = m[1][0]; T[2][0] = m[2][0];
+        T[0][1] = m[0][1]; T[1][1] = m[1][1]; T[2][1] = m[2][1];
+        T[0][2] = m[0][2]; T[1][2] = m[1][2]; T[2][2] = m[2][2];
+        T[0][3] = m[0][3]; T[1][3] = m[1][3]; T[2][3] = m[2][3];
+        arGetTransMatCont( &markers[idx], T                     ,
+                           reinterpret_cast<double*>(&patt_center),
+                           patt_width, T );
+      }
+      else{
+        arGetTransMat( &markers[idx],
+                       reinterpret_cast<double*>(&patt_center),
+                       patt_width, T );
+      }
+      
+      float S = 0.001;
+      m = Matrix4f( +T[0][0], +T[0][1], +T[0][2], +S*T[0][3],
+                    -T[1][0], -T[1][1], -T[1][2], -S*T[1][3],
+                    -T[2][0], -T[2][1], -T[2][2], -S*T[2][3],
+                    0.f, 0.f, 0.f, 1.f );
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+#endif

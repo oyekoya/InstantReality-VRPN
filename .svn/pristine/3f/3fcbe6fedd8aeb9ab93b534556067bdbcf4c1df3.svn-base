@@ -1,0 +1,43 @@
+# - Find Freenect
+# Find the native Freenect headers and libraries.
+#
+#  Freenect_INCLUDE_DIR -  where to find header files.
+#  Freenect_LIBRARIES    - List of libraries when using Freenect.
+#  Freenect_FOUND        - True if Freenect found.
+
+
+# Look for the header file.
+FIND_PATH(Freenect_INCLUDE_DIR NAMES libfreenect.h
+                             PATHS $ENV{H3D_EXTERNAL_ROOT}/include
+                                   ../../External/include )
+MARK_AS_ADVANCED(Freenect_INCLUDE_DIR)
+
+# Look for the library.
+FIND_LIBRARY(Freenect_LIBRARY NAMES freenect
+                            PATHS $ENV{H3D_EXTERNAL_ROOT}/lib
+                                  ../../External/lib )
+MARK_AS_ADVANCED(Freenect_LIBRARY)
+
+# Copy the results to the output variables.
+IF(Freenect_INCLUDE_DIR AND Freenect_LIBRARY)
+  SET(Freenect_FOUND 1)
+
+  SET(Freenect_LIBRARIES ${Freenect_LIBRARY})
+  SET(Freenect_INCLUDE_DIR ${Freenect_INCLUDE_DIR})
+
+ELSE(Freenect_INCLUDE_DIR AND Freenect_LIBRARY)
+  SET(Freenect_FOUND 0)
+  SET(Freenect_LIBRARIES)
+  SET(Freenect_INCLUDE_DIR)
+ENDIF(Freenect_INCLUDE_DIR AND Freenect_LIBRARY)
+
+# Report the results.
+IF(NOT Freenect_FOUND)
+  SET(Freenect_DIR_MESSAGE
+    "Freenect was not found.")
+  IF(Freenect_FIND_REQUIRED)
+    MESSAGE(FATAL_ERROR "${Freenect_DIR_MESSAGE}")
+  ELSEIF(NOT Freenect_FIND_QUIETLY)
+    MESSAGE(STATUS "${Freenect_DIR_MESSAGE}")
+  ENDIF(Freenect_FIND_REQUIRED)
+ENDIF(NOT Freenect_FOUND)

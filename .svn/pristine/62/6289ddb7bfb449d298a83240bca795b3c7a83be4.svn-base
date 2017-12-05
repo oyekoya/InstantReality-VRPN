@@ -1,0 +1,46 @@
+# Copyright 2010, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This script can be used when you have a correct viewpoint to correct
+all settings that modifies tracking and viewpoint according to
+navigation. It sets the type in the navigation info to false and sets
+all devices to not follow the viewpoint.
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+# Stops all current devices from following the viewpoint
+di = getActiveDeviceInfo()
+if di is not None:
+  devices = di.device.getValue()
+  for device in devices:
+    device.followViewpoint.setValue( False )
+
+# Stops mouse actions from affecting the viewpoint
+nav = getActiveNavigationInfo()
+if nav is not None:
+  nav.type.setValue("NONE")
+else:
+  createX3DNodeFromString("""<NavigationInfo type="NONE"/>""")

@@ -1,0 +1,148 @@
+//////////////////////////////////////////////////////////////////////////////
+//    Copyright 2004, SenseGraphics AB
+//
+//    This file is free software; you can redistribute it and/or modify
+//    it under the terms of the GNU General Public License as published by
+//    the Free Software Foundation; either version 2 of the License, or
+//    (at your option) any later version.
+//
+//    H3D API is distributed in the hope that it will be useful,
+//    but WITHOUT ANY WARRANTY; without even the implied warranty of
+//    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//    GNU General Public License for more details.
+//
+//    You should have received a copy of the GNU General Public License
+//    along with H3D API; if not, write to the Free Software
+//    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+//
+//    A commercial license is also available. Please contact us at 
+//    www.sensegraphics.com for more information.
+//
+//
+/// \file GraspTransform.cpp
+/// \brief CPP file for GraspTransform.
+///
+//
+//
+//////////////////////////////////////////////////////////////////////////////
+
+#include "GraspTransform.h"
+
+using namespace H3D;
+
+// Add this node to the H3DNodeDatabase system.
+H3DNodeDatabase GraspTransform::database( 
+                                          "GraspTransform", 
+                                          &(newInstance<GraspTransform>), 
+                                          typeid( GraspTransform ),
+                                          &MatrixTransform::database );
+
+namespace GraspTransformInternals {
+  FIELDDB_ELEMENT( GraspTransform, grasp, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( GraspTransform, graspPosition, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( GraspTransform, graspOrientation, INPUT_OUTPUT );
+}
+
+
+GraspTransform::GraspTransform( 
+                                 Inst< AddChildren >  _addChildren,
+                                 Inst< RemoveChildren >  _removeChildren,
+                                 Inst< MFChild >  _children,
+                                 Inst< SFNode  >  _metadata,
+                                 Inst< SFBound > _bound,
+                                 Inst< SFVec3f >  _bboxCenter,
+                                 Inst< SFVec3f >  _bboxSize,
+                                 Inst< SFTransformedBound > _transformedBound,
+                                 Inst< SFMatrix4f > _matrix,
+                                 Inst< SFMatrix4f > _accumulatedForward,
+                                 Inst< SFMatrix4f > _accumulatedInverse,
+                                 Inst< Grasp      > _grasp,
+                                 Inst< SFVec3f    > _graspPosition,
+                                 Inst< SFRotation > _graspOrientation
+                                 ) :
+  MatrixTransform( _addChildren, _removeChildren, 
+                   _children, _metadata, 
+                   _bound, _bboxCenter, _bboxSize,
+                   _transformedBound, _matrix,
+                   _accumulatedForward, _accumulatedInverse ),
+  grasp( _grasp ),
+  graspPosition( _graspPosition ),
+  graspOrientation( _graspOrientation ),
+  grasp_matrix( new GraspMatrix ) {
+  
+  type_name = "GraspTransform";
+  database.initFields( this );
+
+  grasp_matrix->setName( "grasp_matrix" );
+  grasp_matrix->setOwner( this );
+  
+  grasp->setValue( false );
+  graspPosition->setValue( Vec3f( 0, 0, 0 ) );
+  graspOrientation->setValue( Rotation( 1, 0, 0, 0 ) );
+
+  grasp_matrix->route( matrix );
+}
+
+void GraspTransform::graspObjects() {
+  grasp_matrix->grasp_pos = graspPosition->getValue();
+  grasp_matrix->grasp_orn = graspOrientation->getValue();
+  graspPosition->routeNoEvent( grasp_matrix );
+  graspOrientation->routeNoEvent( grasp_matrix );
+}
+
+void GraspTransform::releaseObjects() {
+  matrix->upToDate();
+  graspOrientation->unroute( grasp_matrix );
+  graspPosition->unroute( grasp_matrix );
+  GraspTransform::SFMatrix4f *m = 
+    static_cast< GraspTransform::SFMatrix4f * >( matrix.get() );
+  m->previous_matrix = matrix->getValue();
+  grasp_matrix->setValue( Matrix4f() );
+}
+
+void GraspTransform::GraspMatrix::update() {
+  const Vec3f &position = 
+    static_cast< SFVec3f * >( routes_in[0] )->getValue();
+  const Rotation &rotation = 
+    static_cast< SFRotation * >( routes_in[1] )->getValue();
+  Matrix4f c = Matrix4f( 1, 0, 0, grasp_pos.x,
+                         0, 1, 0, grasp_pos.y,
+                         0, 0, 1, grasp_pos.z,
+                         0, 0, 0 , 1 );
+  Matrix4f c_inv = Matrix4f( 1, 0, 0, -grasp_pos.x,
+                             0, 1, 0, -grasp_pos.y,
+                             0, 0, 1, -grasp_pos.z,
+                             0, 0, 0 , 1 );
+  Matrix4f m = (Matrix4f)(rotation * -grasp_orn);
+  Vec3f t = position - grasp_pos;
+  Matrix4f tm = Matrix4f( 1, 0, 0, t.x,
+                          0, 1, 0, t.y,
+                          0, 0, 1, t.z,
+                          0, 0, 0 , 1 );
+  
+  value = tm * c * m * c_inv;
+}
+
+void GraspTransform::SFMatrix4f::update() {
+  const Matrix4f &m = 
+    static_cast< SFMatrix4f * >( routes_in[0] )->getValue();
+  value = m * previous_matrix; 
+}
+
+void GraspTransform::Grasp::update() {
+  SFBool::update();
+  GraspTransform *gt = static_cast< GraspTransform * >( getOwner() );
+  if( value ) 
+    gt->graspObjects();
+  else 
+    gt->releaseObjects();
+}
+
+void GraspTransform::Grasp::setValue( const bool &v ) {
+  SFBool::setValue( v );
+  GraspTransform *gt = static_cast< GraspTransform * >( getOwner() );
+  if( value ) 
+    gt->graspObjects();
+  else 
+    gt->releaseObjects();
+}

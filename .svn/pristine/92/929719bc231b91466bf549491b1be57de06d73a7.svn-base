@@ -1,0 +1,90 @@
+/**
+
+Copyright 2007-2008, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _HVR_MARKERTRACKER_HH_
+#define _HVR_MARKERTRACKER_HH_
+
+#include <HVR/HVR.hh>
+#include <HVR/HVRTrackerNode.hh>
+
+#ifdef HAVE_ARTOOLKIT
+
+#include <H3DUtil/Threads.h>
+#include <H3D/X3DChildNode.h>
+#include <H3D/H3DNodeDatabase.h>
+
+#include <H3D/SFInt32.h>
+#include <H3D/SFBool.h>
+#include <H3D/SFFloat.h>
+
+namespace HVR {
+  
+  /**
+     This is a simple node that represents the tracking of a ARToolkit
+     marker.
+   */
+  class HVR_API MarkerTracker
+    : public HVRTrackerNode,
+      public H3DUtil::PeriodicThread {
+    
+  public:
+    
+    MarkerTracker
+      ( H3D::Inst< H3D::SFNode > _metadata = 0,
+        H3D::Inst< EventSink > _eventSink = 0,
+        
+        H3D::Inst< TSSField(H3D::SFMatrix4f) > _rawMatrix = 0,
+        H3D::Inst< TSSField(H3D::SFVec3f) > _rawPosition = 0,
+        H3D::Inst< TSSField(H3D::SFRotation) > _rawOrientation = 0,
+        
+        H3D::Inst< CalibratedMatrix > _trackerMatrix = 0,
+        H3D::Inst< CalibratedPosition > _trackerPosition = 0,
+        H3D::Inst< CalibratedOrientation > _trackerOrientation = 0,
+        
+        H3D::Inst< H3D::SFMatrix4f > _positionCalibration = 0,
+        H3D::Inst< H3D::SFRotation > _orientationCalibration = 0,
+        
+        H3D::Inst< H3D::SFInt32 > markerId = 0 );
+    
+    virtual ~MarkerTracker();
+    
+    void initialize();
+    
+    static H3D::H3DNodeDatabase database;
+    
+    /** The marker id of this marker. */
+    std::auto_ptr< H3D::SFInt32    > markerId;
+    
+  private:
+    int marker_id;
+    H3D::Matrix4f matrix;
+    bool has_matrix;
+    static CallbackCode callback(void *data);
+    void update();
+  };
+}
+
+#endif
+#endif

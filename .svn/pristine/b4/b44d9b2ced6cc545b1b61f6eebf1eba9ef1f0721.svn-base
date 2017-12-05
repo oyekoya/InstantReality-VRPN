@@ -1,0 +1,207 @@
+/**
+   
+Copyright 2007, 2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+*/
+
+
+#include <HVR/SMViewpoint.hh>
+
+#include <H3D/Scene.h>
+
+using namespace HVR;
+using namespace H3D;
+
+H3DNodeDatabase SMViewpoint::database
+( "SMViewpoint",
+  &(newInstance<SMViewpoint>),
+  typeid( SMViewpoint ),
+  &Viewpoint::database );
+
+namespace SMViewpointInternals {
+  FIELDDB_ELEMENT( SMViewpoint, tracker, INPUT_OUTPUT );
+#ifdef HVR_HAVE_HEAD_TILT
+  FIELDDB_ELEMENT( SMViewpoint, headOrientation, INPUT_OUTPUT );
+#endif
+  FIELDDB_ELEMENT( SMViewpoint, screenLowerLeft, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( SMViewpoint, screenUpperRight, INPUT_OUTPUT );
+}
+
+SMViewpoint::SMViewpoint
+( Inst< SFSetBind > _set_bind,
+  Inst< SFVec3f > _centerOfRotation,
+  Inst< SFString > _description,
+  Inst< SFFloat > _fieldOfView,
+  Inst< SFBool > _jump,
+  Inst< SFNode > _metadata,
+  Inst< SFOrientation > _orientation,
+  Inst< SFPosition > _position,
+  Inst< SFBool > _retainUserOffsets,
+  Inst< SFTime > _bindTime,
+  Inst< SFBool > _isBound,
+  Inst< SFMatrix4f > _accForwardMatrix,
+  Inst< SFMatrix4f > _accInverseMatrix,
+  
+  Inst< SFTrackerNode > _tracker,
+#ifdef HVR_HAVE_HEAD_TILT
+  Inst< SFRotation > _headOrientation,
+#endif
+  Inst< SFVec3f > _screenLowerLeft,
+  Inst< SFVec3f > _screenUpperRight )
+  
+  : Viewpoint(_set_bind,
+              _centerOfRotation,
+              _description,
+              _fieldOfView,
+              _jump,
+              _metadata,
+              _orientation,
+              _position,
+              _retainUserOffsets,
+              _bindTime,
+              _isBound,
+              _accForwardMatrix,
+              _accInverseMatrix),
+    tracker( _tracker ),
+#ifdef HVR_HAVE_HEAD_TILT
+    headOrientation( _headOrientation ),
+#endif
+    screenLowerLeft( _screenLowerLeft ),
+    screenUpperRight( _screenUpperRight ) {
+  
+  type_name = "SMViewpoint";
+  database.initFields( this );
+  
+#ifdef HVR_HAVE_HEAD_TILT
+  headOrientation->setValue(Rotation(1,0,0,0));
+#endif
+      
+  screenLowerLeft->setValue(Vec3f(-.1,-.1,0));
+  screenUpperRight->setValue(Vec3f(.1,.1,0));
+}
+
+void SMViewpoint::SFTrackerNode::onAdd(Node *n){
+  TypedSFNode<HVRTrackerNode>::onAdd(n);
+  
+  HVRTrackerNode *tracker = dynamic_cast<HVRTrackerNode*>(n);
+  if( tracker == NULL ){ return; }
+  SMViewpoint *parent = static_cast<SMViewpoint*>(owner);
+  
+  tracker->trackerPosition->route(parent->position);
+#ifdef HVR_HAVE_HEAD_TILT
+  tracker->trackerOrientation->route(parent->headOrientation);
+#endif
+}
+
+void SMViewpoint::SFTrackerNode::onRemove(Node *n){
+  TypedSFNode<HVRTrackerNode>::onRemove(n);
+  
+  HVRTrackerNode *tracker = dynamic_cast<HVRTrackerNode*>(n);
+  if( tracker == NULL ){ return; }
+  SMViewpoint *parent = static_cast<SMViewpoint*>(owner);
+  
+  tracker->trackerPosition->unroute(parent->position);
+#ifdef HVR_HAVE_HEAD_TILT
+  tracker->trackerOrientation->route(parent->headOrientation);
+#endif
+}
+
+void SMViewpoint::setupProjection( EyeMode eye_mode,
+                                   H3DFloat width, H3DFloat height,
+                                   H3DFloat clip_near, H3DFloat clip_far,
+                                   StereoInfo* stereo_info ){
+  
+  // Get required variables
+  Vec3f x_UR = screenUpperRight->getValue();
+  Vec3f x_LL = screenLowerLeft->getValue();
+  Vec3f x_VP = position->getValue();
+  
+#ifdef HVR_HAVE_HEAD_TILT
+  if( stereo_info == NULL ){
+    stereo_info = StereoInfo::getActive();
+    if( stereo_info == NULL ){
+      stereo_info = &default_stereo_info; }
+  }
+  
+  switch( eye_mode ){
+  case LEFT_EYE:
+    x_VP += headOrientation->getValue()
+      * Vec3f(-.5f*stereo_info->interocularDistance->getValue(),0.f,0.f);
+    break;
+  case RIGHT_EYE:
+    x_VP += headOrientation->getValue()
+      * Vec3f(+.5f*stereo_info->interocularDistance->getValue(),0.f,0.f);
+    break;
+  }
+#endif
+  
+  // Display center and normal
+  Vec3f center = 0.5f * ( x_UR + x_LL );
+  Vec3f display_normal = ( x_UR - x_LL ) % Vec3f(0,1,0);
+  display_normal.normalize();
+  
+  // Projection of viewpoint onto display plane
+  float distance = x_VP * display_normal;
+  Vec3f p_VP = x_VP - distance*display_normal;
+  
+  // Map geometry onto near plane
+  float ratio = clip_near / distance;
+  float center_x = ratio * ( center.x - p_VP.x );
+  float center_y = ratio * ( center.y - p_VP.y );
+  float half_width = 0.5f * ratio * ( x_UR - x_LL ).x;
+  float half_height = 0.5f * ratio * ( x_UR - x_LL ).y;
+  
+  glFrustum( center_x -half_width, center_x +half_width,
+             center_y -half_height, center_y +half_height,
+             clip_near, clip_far );
+}
+
+#ifdef HVR_HAVE_HEAD_TILT
+void SMViewpoint::setupViewMatrix( EyeMode eye_mode, H3D::StereoInfo *stereo_info ){
+  Vec3f x_VP = position->getValue();
+  Rotation r_VP = orientation->getValue();
+  Matrix4f mi_VP = accInverseMatrix->getValue();
+  assert(sizeof(mi_VP)==16*sizeof(float));
+  
+  if( stereo_info == NULL ){
+    stereo_info = StereoInfo::getActive();
+    if( stereo_info == NULL ){
+      stereo_info = &default_stereo_info; }
+  }
+  
+  switch( eye_mode ){
+  case LEFT_EYE:
+    x_VP += headOrientation->getValue()
+      * Vec3f(-.5f*stereo_info->interocularDistance->getValue(),0.f,0.f);
+    break;
+  case RIGHT_EYE:
+    x_VP += headOrientation->getValue()
+      * Vec3f(+.5f*stereo_info->interocularDistance->getValue(),0.f,0.f);
+    break;
+  }
+  
+  glRotatef( -(180.f/float(Constants::pi)) * r_VP.angle,
+             r_VP.axis.x, r_VP.axis.y, r_VP.axis.z );
+  glTranslatef( -x_VP.x, -x_VP.y, -x_VP.z );
+  glMultMatrixf( reinterpret_cast<float*>(&mi_VP) );
+}
+#endif

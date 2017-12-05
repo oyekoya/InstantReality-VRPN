@@ -1,0 +1,296 @@
+# Copyright 2005-2008, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This Python-script accumulates rotation information extracted from the
+sensors provided through the references field. This can be KeySensor,
+MouseSensor or any Sensor with an instantRotation field, such as
+SpaceWareSensor. The script can and should be used to control 3D scene
+orientation. This is done by routing the rotation field of this script
+to a Transform node. The orientation provided by this script can be
+reset to zero by setting the reset field to true.
+
+This script uses KeySensor, MouseSensor and SpaceWareSensor if no
+sensor is explicitly provided through the references field.
+
+You may also modify several settings using metadata nodes with
+appropriate values:
+
+"keyRotationScale" (1 in MetadataFloat)
+Sets the rotation scaling when a key is used to rotate the object(s).
+
+"mouseRotationScale" (1 in MetadataFloat)
+Sets the rotation scaling when the mouse is used to rotate the
+object(s).
+
+"generalRotationScale" (1 in MetadataFloat)
+Sets a common rotation scaling for all means of rotation, keys, mouse,
+space mouse, etc.
+
+"defaultKeyTime" (1 in MetadataFloat)
+Time is used to scale rotation to reduce the impact of frame
+rate. This parameter sets the time used to scale a single key event
+(i.e. where there is no time)
+
+"eulerAxis" (3 in MetadataFloat)
+Sets an axis for Euler angle rotation and deactivates free rotation.
+
+"eulerLimits" (2 in MetadataFloat - [ min, max ])
+Sets upper and lower Euler angle limits for the last specified Euler
+axis.
+
+For example, use the following script to rotate the transform "TR"
+using a classical inspectation navigation:
+
+  <PythonScript
+      DEF="ROTATOR"
+      url="python/Rotator.py">
+    <MetadataFloat name="eulerAxis" value="1 0 0"
+                   containerField="references"/>
+    <MetadataFloat name="eulerLimits" value="-1 1"
+                   containerField="references"/>
+    <MetadataFloat name="eulerAxis" value="0 1 0"
+                   containerField="references"/>
+  </PythonScript>
+  <ROUTE fromNode="ROTATOR" fromField="rotation"
+         toNode="TR" toField="rotation"/>
+
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+
+reset = SFBool()
+
+arguments = references.getValue()
+
+const = {
+  "KEY_ROTATION_SCALE": 10.0,
+  "MOUSE_ROTATION_SCALE": 5.0,
+  "GENERAL_ROTATION_SCALE": 0.05,
+  
+  "KEY_DEFAULT_TIME": 0.1,
+  
+  "EULER_AXES": [],
+  "EULER_LIMITS": {}
+  }
+
+sensors = []
+for arg in arguments:
+  
+  if hasattr(arg,"name") and arg.name.getValue() == "keyRotationScale":
+    const["KEY_ROTATION_SCALE"] = arg.value.getValue()[0]
+    
+  elif hasattr(arg,"name") and arg.name.getValue() == "mouseRotationScale":
+    const["MOUSE_ROTATION_SCALE"] = arg.value.getValue()[0]
+    
+  elif hasattr(arg,"name") and arg.name.getValue() == "generalRotationScale":
+    const["GENERAL_ROTATION_SCALE"] = arg.value.getValue()[0]
+    
+  elif hasattr(arg,"name") and arg.name.getValue() == "keyDefaultTime":
+    const["KEY_DEFAULT_TIME"] = arg.value.getValue()[0]
+    
+  elif hasattr(arg,"name") and arg.name.getValue() == "eulerAxis":
+    coords = arg.value.getValue()
+    const["EULER_AXES"].append(Vec3f(coords[0],coords[1],coords[2]))
+    
+  elif hasattr(arg,"name") and arg.name.getValue() == "eulerLimits":
+    values = arg.value.getValue()
+    const["EULER_LIMITS"][len(const["EULER_AXES"])-1] \
+        = [ values[0], values[1] ]
+    
+  else:
+    sensors.append(arg)
+
+# Default behaviour - three sensors
+if len(sensors) == 0:
+  nodes, names, = createX3DNodeFromString( """
+   <Group>
+     <KeySensor DEF="KS"/>
+     <MouseSensor DEF="MS"/>
+     <SpaceWareSensor DEF="SWS"/>
+   </Group>
+  """ )
+  sensors = nodes.children.getValue()
+
+
+class KeyRotation(TypedField( SFRotation,
+                              ( SFInt32, SFInt32 ))):
+  
+  def __init__(self):
+    SFRotation.__init__(self)
+    self.last_time = time.getValue()
+    self.key_down = 0
+  
+  def update(self, event):
+    inputs = self.getRoutesIn()
+    
+    if len(inputs) < 1:
+      return Rotation()
+    
+    key = inputs[0].getValue()
+    
+    this_time = time.getValue()
+    dt = ( this_time - self.last_time )
+    self.last_time = this_time
+    
+    if event == inputs[0]:
+      if self.key_down > 2:
+        step = const["KEY_ROTATION_SCALE"] * dt
+      else:
+        self.key_down += 1
+        step = const["KEY_ROTATION_SCALE"] * const["KEY_DEFAULT_TIME"]
+      
+      if key == 17:
+        return Rotation( 1,0,0,-step )
+      if key == 18:
+        return Rotation( 1,0,0, step )
+      if key == 19:
+        return Rotation( 0,1,0,-step )
+      if key == 20:
+        return Rotation( 0,1,0, step )
+    
+    elif event == inputs[1]:
+      self.key_down = 0
+
+    return Rotation()
+  
+
+class MouseRotation(TypedField( SFRotation,
+                                ( SFBool,  SFVec2f ))):
+  
+  def __init__(self):
+    SFRotation.__init__(self)
+    self.last_time = time.getValue()
+    self.button = False
+    
+  def update(self, event):
+    
+    inputs = self.getRoutesIn()
+
+    if len(inputs) < 2:
+      return Rotation()
+    
+    button = inputs[0].getValue()
+    motion = inputs[1].getValue()
+    
+    this_time = time.getValue()
+    dt = ( this_time - self.last_time )
+    self.last_time = this_time
+
+    if button and self.button and motion * motion > 1e-10:
+      perp = Vec2f( motion.y, motion.x )
+      perp.normalize()
+      return Rotation( perp.x,
+                       perp.y, 0,
+                       const["MOUSE_ROTATION_SCALE"] * motion.length() * dt )
+    self.button = button
+    
+    return Rotation()
+  
+
+class Rotator(SFRotation):
+  
+  def __init__(self):
+    SFRotation.__init__(self)
+    self.orientation = Rotation()
+    self.eulerAngle = []
+    
+  def reset(self):
+    self.orientation = Rotation()
+    self.eulerAngle = []
+    
+  def update(self, event):
+    
+    inputs = self.getRoutesIn()
+    for field in inputs:
+      
+      rotation = field.getValue()
+      rotation.angle *= const["GENERAL_ROTATION_SCALE"]
+      
+      if len(const["EULER_AXES"]) > 0:
+        
+        for axis_idx in xrange(len(const["EULER_AXES"])):
+          if axis_idx >= len(self.eulerAngle):
+            self.eulerAngle.append(0)
+          self.eulerAngle[axis_idx] += \
+              rotation.angle * ( Vec3f( rotation.x, rotation.y, rotation.z ) *
+                                 const["EULER_AXES"][axis_idx] )
+          if axis_idx in const["EULER_LIMITS"]:
+            self.eulerAngle[axis_idx] = \
+                max( self.eulerAngle[axis_idx],
+                     const["EULER_LIMITS"][axis_idx][0] )
+            self.eulerAngle[axis_idx] = \
+                min( self.eulerAngle[axis_idx],
+                     const["EULER_LIMITS"][axis_idx][1] )
+      else:
+        self.orientation = rotation * self.orientation
+    
+    if len(const["EULER_AXES"]) > 0:
+      
+      self.orientation = Rotation()
+      for idx in reversed(xrange( len(const["EULER_AXES"]) )):
+        self.orientation = (Rotation( const["EULER_AXES"][idx],
+                                      self.eulerAngle[idx] )
+                            * self.orientation)
+    
+    return self.orientation
+
+rotation = Rotator()
+
+
+class Resetter(SFBool):
+  
+  def __init__(self,field):
+    SFBool.__init__(self)
+    self.field = field
+  
+  def update(self,event):
+    if event.getValue():
+      self.field.reset()
+
+resetter = Resetter(rotation)
+reset.routeNoEvent(resetter)
+resetter.routeNoEvent(eventSink)
+
+
+for sensor in sensors:
+  if sensor.getTypeName() == "KeySensor":
+    keyRotation = KeyRotation()
+    sensor.actionKeyPress.route( keyRotation )
+    sensor.actionKeyRelease.route( keyRotation )
+    keyRotation.route( rotation )
+  elif sensor.getTypeName() == "MouseSensor":
+    mouseRotation = MouseRotation()
+    sensor.leftButton.route( mouseRotation )
+    sensor.motion.route( mouseRotation )
+    mouseRotation.route( rotation )
+  else:
+    if not sensor.getField("instantRotation") is None:
+      sensor.instantRotation.route( rotation )
+    else:
+      print "Can't find field 'instantRotation' " \
+            "in unrecognized sensor '%s'" % sensor.getTypeName()
+
+

@@ -1,0 +1,188 @@
+# Copyright 2005-2010, Karljohan Lundin Palmerius
+#
+
+"""This file provides extra functionality to the Candy package.
+
+This Python script provides an intuitive navigation scheme where at
+least two haptic instruments are used to translate, rotate and scale a
+selected transform. All haptic instruments available in the currently
+active DeviceInfo node are applied. The main button of the devices is
+used to grasp the specified transform.
+
+The following must be provided through the "references" field:
+*) the transform node on which to operate.
+
+The default behaviour is to enable interaction with all devices
+available at initialization. Their main button will be used for
+grabbing. This behaviour can be turned off if another button is
+wanted, for alternative motion control, or if simply not all available
+devices are supposed to be used.
+
+Turn off the automatic connection by setting "autoconnect" to false (0):
+
+<MetadataInteger name="autoconnect" value="0" containerField="references"/>
+
+The buttons to grab with should be connected to the buttonCombiner
+field, and the tracker positions to use should be connected to the
+positionCombiner field.
+
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+from H3D import *
+from H3DInterface import *
+
+
+T = None
+autoconnect = True
+
+ref_nodes = references.getValue()
+for node in ref_nodes:
+  
+  if hasattr(node,"matrix"):
+    T = node
+    continue
+  
+  elif hasattr(node,"name"):
+    node_name = node.name.getValue()
+  
+    if node_name == "autoconnect":
+      try:
+        autoconnect = bool(node.value.getValue()[0])
+      except:
+        print "Multitouch: Could not set 'autoconnect' property."
+    
+    else:
+      print "MultiTouch: Unrecognized argument '%s'." % node_name
+      
+  else:
+    print "MultiTouch: Unrecognized argument '%s'." % node
+
+
+def MSField2MField( sfield, mfield ):
+  class MSField2MFieldClass( TypedField( mfield, None, sfield ) ):
+    def update( self, event ):
+      result = []
+      for field in self.getRoutesIn():
+        result.append(field.getValue())
+      return result
+  return MSField2MFieldClass()
+
+
+class Transformer(TypedField( SFBool,
+                              ( MFBool,     # Activate (button)
+                                MFVec3f ))):# Tracker position
+  def __init__(self):
+    SFBool.__init__(self)
+    self.position = {}
+  
+  def update(self, event):
+    try:
+      inputs = self.getRoutesIn()
+      buttons = inputs[0].getValue()
+      positions = inputs[1].getValue()
+    except:
+      return False
+
+    position = {}
+    for idx in xrange(len(buttons)):
+      if buttons[idx] > 0:
+        position[idx] = positions[idx]
+    
+    N = 0
+    new_position = Vec3f(0,0,0)
+    old_position = Vec3f(0,0,0)
+    for idx in position.keys():
+      if self.position.has_key(idx):
+        N += 1
+        new_position += position[idx]
+        old_position += self.position[idx]
+    
+    if N < 1:
+      self.position = position
+      return True
+    
+    new_position /= N;
+    old_position /= N;
+    
+    scale = 0
+    rotation = Rotation()
+    if N > 1:
+      for idx in position.keys():
+        if self.position.has_key(idx):
+          
+          new_v = position[idx] - new_position
+          old_v = self.position[idx] - old_position
+          
+          scale += ( new_v.length() / old_v.length() )
+
+          new_v.normalize()
+          old_v.normalize()
+          
+          rot = Rotation(old_v,new_v)
+          rot.angle /= N
+          
+          rotation = rot * rotation
+          
+      scale /= N
+    else:
+      scale = 1
+    
+    Tr = T.matrix.getValue()
+    
+    Tr = Matrix4f(1,0,0,-old_position.x,
+                  0,1,0,-old_position.y,
+                  0,0,1,-old_position.z,
+                  0,0,0,1) * Tr
+    
+    Tr = Matrix4f(scale,0,0,0,
+                  0,scale,0,0,
+                  0,0,scale,0,
+                  0,0,0,1) * Tr
+    
+    Tr = Matrix4f(rotation) * Tr
+    
+    Tr = Matrix4f(1,0,0,+new_position.x,
+                  0,1,0,+new_position.y,
+                  0,0,1,+new_position.z,
+                  0,0,0,1) * Tr
+    
+    T.matrix.setValue(Tr)
+    
+    self.position = position
+    
+    return True
+
+
+buttonCombiner = MSField2MField(SFBool,MFBool)
+positionCombiner = MSField2MField(SFVec3f,MFVec3f)
+
+if autoconnect:
+  di = getActiveDeviceInfo()
+  devices = di.device.getValue()
+  for device in devices:
+    device.mainButton.route(buttonCombiner)
+    device.trackerPosition.route(positionCombiner)
+  
+transformer = Transformer()
+buttonCombiner.routeNoEvent(transformer)
+positionCombiner.routeNoEvent(transformer)
+transformer.routeNoEvent(eventSink)

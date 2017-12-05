@@ -1,0 +1,143 @@
+/**
+ * (c)2002-2009 Karljohan Lundin Palmerius
+ */
+
+#include <Candy/MouseHapticsDevice.hh>
+
+#include <H3D/Coordinate.h>
+#include <H3D/Normal.h>
+
+using namespace HAPI;
+using namespace H3D;
+using namespace Candy;
+
+
+HAPIHapticsDevice::HapticsDeviceRegistration 
+MouseHapticsDevice::Device::device_registration
+( "MouseDevice",
+  &(newInstance<MouseHapticsDevice::Device>),
+  list< string >() );
+
+H3DNodeDatabase MouseHapticsDevice::database
+( "MouseHapticsDevice",
+  &(newInstance<MouseHapticsDevice>),
+  typeid( MouseHapticsDevice ),
+  &H3DHapticsDevice::database );
+
+namespace MouseHapticsDeviceInternals {
+  FIELDDB_ELEMENT( MouseHapticsDevice, zScale, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( MouseHapticsDevice, orientation, INPUT_OUTPUT );
+}
+
+MouseHapticsDevice::MouseHapticsDevice()
+  : zScale( new SFFloat(0.001) ),
+    orientation( new SFRotation ),
+    mouse( new MouseSensor ),
+    depth( new Depth ),
+    device(new Device) {
+  
+  type_name = "MouseHapticsDevice";
+  database.initFields( this );
+  
+  mouse->middleButton->routeNoEvent( depth );
+  zScale->routeNoEvent( depth );
+  mouse->motion->routeNoEvent( depth );
+  
+  hapi_device.reset(device);
+}
+
+void MouseHapticsDevice::preRender(){
+  Vec2f pos = mouse->position->getValue();
+  H3DFloat depth = this->depth->getValue();
+  
+  GLdouble Mm[16];
+  glGetDoublev( GL_MODELVIEW_MATRIX, Mm );
+  
+  GLdouble Mp[16];
+  glGetDoublev( GL_PROJECTION_MATRIX, Mp );
+  
+  GLint view[4];
+  glGetIntegerv( GL_VIEWPORT, view );
+  
+  Vec3d x0, x1;
+  gluUnProject( pos.x, pos.y, 1,
+                Mm, Mp, view,
+                &x0.x, &x0.y, &x0.z );
+  gluUnProject( pos.x, pos.y, 0,
+                Mm, Mp, view,
+                &x1.x, &x1.y, &x1.z );
+  
+  Vec3d n(0,0,1), z(0,0,depth), v(x1-x0);
+  v.normalizeSafe();
+  Vec3d x = x0 - ( ((x0-z)*n)/(v*n) )*v;
+  x.y = -x.y;
+  device->setValues( x, orientation->getValue(),
+                     mouse->rightButton->getValue() );
+}
+
+
+
+void MouseHapticsDevice::Device::updateDeviceValues
+( DeviceValues &dv,
+  HAPI::HAPITime dt ){
+  HAPIHapticsDevice::updateDeviceValues(dv,dt);
+  
+  lock.lock();
+  
+  double a = 1.1 * (H3DUtil::TimeStamp() - ot)/time_per_frame;
+  a = std::min( a, 1.0 );
+  
+  Vec3d ncp = (1-a) * op + ( a ) * np;
+  Rotationd ncR = oR.slerp(nR,a);
+  
+  dv.velocity = velocity;
+  dv.position = ncp;
+  dv.orientation = ncR;
+  dv.button_status = button ? 1 : 0;
+  
+  cp = ncp;
+  cR = ncR;
+  lock.unlock();
+}
+
+void MouseHapticsDevice::Device::sendOutput
+( DeviceOutput &dv, HAPI::HAPITime dt ){}
+
+void MouseHapticsDevice::Device::setValues
+(H3D::Vec3d pos, H3D::Rotationd rot, bool button){
+  
+  lock.lock();
+  
+  op = cp;
+  np = pos;
+  
+  oR = cR;
+  nR = rot;
+  
+  HAPI::HAPITime nt = H3DUtil::TimeStamp();
+  
+  frame_time[( frame_time_frame
+               = ( frame_time_frame + 1 )
+               % frame_time.size() )] = ( nt - ot );
+  
+  std::vector<double> sort_frame_time = frame_time;
+  std::sort(sort_frame_time.begin(),sort_frame_time.end());
+  double time = 0;
+  for( std::vector<double>::iterator i =
+         sort_frame_time.begin() + FRAME_TIME_VALUES_LOW_REMOVE ;
+       i != sort_frame_time.end() - FRAME_TIME_VALUES_HIGH_REMOVE ; i++ ){
+    time += *i;
+  }
+  
+  time_per_frame =
+    time / double( FRAME_TIME_VALUES
+                   -FRAME_TIME_VALUES_LOW_REMOVE
+                   -FRAME_TIME_VALUES_HIGH_REMOVE );
+  
+  velocity = (np-op)/time_per_frame;
+  
+  ot = nt;
+  this->button = button;
+  
+  lock.unlock();
+}

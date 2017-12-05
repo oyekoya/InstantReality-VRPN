@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2008, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Group>
+  <NavigationInfo
+      type="NONE"/>
+  
+  <Transform
+      scale=".5 .5 .5"
+      DEF="TR">
+    <Transform
+        translation=".1 0 0">
+      <Inline
+          DEF="RGB"
+          url="urn:candy:x3d/pick_RGB.x3d"/>
+    </Transform>
+    <IMPORT inlineDEF="RGB" exportedDEF="PICK_RGB" AS="PICK_RGB"/>
+    
+    <Transform
+        translation="-.1 0 0">
+      <Inline
+          DEF="HSV"
+          url="urn:candy:x3d/pick_HSV.x3d"/>
+    </Transform>
+    <IMPORT inlineDEF="HSV" exportedDEF="PICK_HSV" AS="PICK_HSV"/>
+    <ROUTE fromNode="PICK_RGB" fromField="color"
+           toNode="PICK_HSV" toField="color"/>
+    <ROUTE fromNode="PICK_HSV" fromField="color"
+           toNode="PICK_RGB" toField="color"/>
+  </Transform>
+  
+  <PythonScript
+      DEF="ROTATOR"
+      url="urn:candy:python/Rotator.py">
+    <MetadataFloat name="eulerAxis" value="1 0 0"
+                   containerField="references"/>
+    <MetadataFloat name="eulerLimits" value="-1 1"
+                   containerField="references"/>
+    <MetadataFloat name="eulerAxis" value="0 1 0"
+                   containerField="references"/>
+  </PythonScript>
+  <ROUTE fromNode="ROTATOR" fromField="rotation"
+         toNode="TR" toField="rotation"/>
+  
+</Group>

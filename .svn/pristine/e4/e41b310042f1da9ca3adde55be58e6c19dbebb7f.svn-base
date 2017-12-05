@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2009, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Group>
+  <NavigationInfo
+      type="NONE"/>
+  
+  <MatrixTransform
+      DEF="TR">
+    
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".6 .8 .2"
+            specularColor=".6 .6 .0"/>
+      </Appearance>
+      <Box size=".04 .04 .04"/>
+    </Shape>
+    
+  </MatrixTransform>
+  
+  <IMPORT inlineDEF="H3D_EXPORTS" exportedDEF="HDEV" AS="HDEV"/>
+  
+  <PythonScript
+      DEF="MT"
+      url="urn:candy:python/ManualTranslation.py">
+    <Transform USE="TR" containerField="references"/>
+  </PythonScript>
+  
+  <PythonScript
+      DEF="MZ"
+      url="urn:candy:python/ManualZoom.py">
+    <Transform USE="TR" containerField="references"/>
+  </PythonScript>
+  
+  <PythonScript
+      DEF="MR"
+      url="urn:candy:python/ManualRotation.py">
+    <Transform USE="TR" containerField="references"/>
+  </PythonScript>
+  
+  <ROUTE fromNode="HDEV" fromField="mainButton"
+         toNode="MT" toField="button"/>
+  <ROUTE fromNode="HDEV" fromField="trackerPosition"
+         toNode="MT" toField="position"/>
+  
+  <ROUTE fromNode="HDEV" fromField="mainButton"
+         toNode="MZ" toField="button"/>
+  <ROUTE fromNode="HDEV" fromField="trackerPosition"
+         toNode="MZ" toField="position"/>
+  <ROUTE fromNode="HDEV" fromField="trackerOrientation"
+         toNode="MZ" toField="orientation"/>
+  
+  <ROUTE fromNode="HDEV" fromField="mainButton"
+         toNode="MR" toField="button"/>
+  <ROUTE fromNode="HDEV" fromField="trackerPosition"
+         toNode="MR" toField="position"/>
+  <ROUTE fromNode="HDEV" fromField="trackerOrientation"
+         toNode="MR" toField="orientation"/>
+  
+</Group>

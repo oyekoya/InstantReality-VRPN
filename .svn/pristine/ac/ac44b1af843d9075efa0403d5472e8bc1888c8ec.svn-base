@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2008, Karljohan Lundin Palmerius
+
+This X3D file generates a widget for picking a colour in
+the RGB colour space. The widget renders a cube
+representing the three dimensions of the RGB colour space.
+In its default orientation up is white and down is black.
+
+This X3D file exports the "PICK_RGB" node which has the
+following fields:
+
+ - color, providing the picked colour. Route from this
+      field to read off the selected colour and route
+      to the field to see a colour's position in the
+      colour space of the widget
+
+ - position, describing the position of the colour in the
+      local space
+
+ - trigger, a boolean field that becomes true when the
+      stylus is moved inside the widget. Use this to
+      deactivate other functions in your program when
+      colour picking is being performed
+
+ - active, a boolean field that becomes true when the the
+      widget is triggered and the main button is pressed,
+      indicating that the colour is being interactively
+      updated
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Transform
+    scale="0.577 0.577 0.577"
+    rotation="-0.7071 0 0.7071 0.95532">
+  
+  <Transform
+      translation="+.1 +.1 +.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".9 .9 .9"/>
+      </Appearance>
+      <Box DEF="BOX" size=".02 .02 .02"/>
+    </Shape>
+  </Transform>
+
+  <Transform
+      translation="-.1 +.1 +.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".1 .9 .9"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+  
+  <Transform
+      translation="+.1 -.1 +.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".9 .1 .9"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+
+  <Transform
+      translation="-.1 -.1 +.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".1 .1 .9"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+  
+  <Transform
+      translation="+.1 +.1 -.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".9 .9 .1"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+
+  <Transform
+      translation="-.1 +.1 -.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".1 .9 .1"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+  
+  <Transform
+      translation="+.1 -.1 -.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".9 .1 .1"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+
+  <Transform
+      translation="-.1 -.1 -.1">
+    <Shape>
+      <Appearance>
+        <Material
+            diffuseColor=".1 .1 .1"/>
+      </Appearance>
+      <Box USE="BOX"/>
+    </Shape>
+  </Transform>
+  
+  <Transform
+      translation="+.1 0 +.1">
+    <Shape DEF="BAR">
+      <Appearance>
+        <Material
+            diffuseColor=".75 .8 .9"
+            specularColor="1 1 1"/>
+      </Appearance>
+      <Cylinder radius=".002" height=".2"/>
+    </Shape>
+  </Transform>
+  
+  <Transform
+      translation="-.1 0 +.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      translation="+.1 0 -.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      translation="-.1 0 -.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="0 0 1 1.5708"
+      translation="0 +.1 +.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="0 0 1 1.5708"
+      translation="0 +.1 -.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="0 0 1 1.5708"
+      translation="0 -.1 +.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="0 0 1 1.5708"
+      translation="0 -.1 -.1">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="1 0 0 1.5708"
+      translation="+.1 +.1 0">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="1 0 0 1.5708"
+      translation="+.1 -.1 0">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="1 0 0 1.5708"
+      translation="-.1 +.1 0">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Transform
+      rotation="1 0 0 1.5708"
+      translation="-.1 -.1 0">
+    <Shape USE="BAR"/>
+  </Transform>
+  
+  <Group>
+    <PointNormalClipPlane
+        point="+1 0 0"
+        normal="+1 0 0"
+        clipGraphics="true"
+        clipHaptics="true"
+        DEF="REMOVE_CONSTRAINT"/>
+    <Shape>
+      <Appearance>
+        <Material/>
+        <SmoothSurface/>
+      </Appearance>
+      <Box solid="false" size=".2 .2 .2"/>
+    </Shape>
+  </Group>
+  
+  <PythonScript
+      DEF="RGB_SCRIPT"
+      url="pick_RGB.py"/>
+  
+  <ROUTE fromNode="RGB_SCRIPT" fromField="constraint"
+         toNode="REMOVE_CONSTRAINT" toField="clipHaptics"/>
+  
+  <TransformInfo DEF="INFO"/>
+  <IMPORT inlineDEF="H3D_EXPORTS" exportedDEF="HDEV" AS="HDEV"/>
+  
+  <ROUTE fromNode="HDEV" fromField="mainButton"
+         toNode="RGB_SCRIPT" toField="move_active" />
+  <ROUTE fromNode="HDEV" fromField="trackerPosition"
+         toNode="RGB_SCRIPT" toField="move_position" />
+  <ROUTE fromNode="INFO" fromField="accInverseMatrix"
+         toNode="RGB_SCRIPT" toField="move_transform" />
+  
+  <Transform
+      DEF="INDICATOR">
+    <Shape>
+      <Appearance>
+        <Material
+            DEF="INDICATOR_MAT"/>
+      </Appearance>
+      <Sphere radius="0.017331"/>
+    </Shape>
+  </Transform>
+  
+  <ROUTE fromNode="RGB_SCRIPT" fromField="color"
+         toNode="INDICATOR_MAT" toField="diffuseColor"/>
+  <ROUTE fromNode="RGB_SCRIPT" fromField="position"
+         toNode="INDICATOR" toField="translation"/>
+  
+  <EXPORT localDEF="RGB_SCRIPT" AS="PICK_RGB"/>
+  
+</Transform>

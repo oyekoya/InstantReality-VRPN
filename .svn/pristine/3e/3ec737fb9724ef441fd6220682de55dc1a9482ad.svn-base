@@ -1,0 +1,154 @@
+/**
+
+Copyright 2003-2010, Karljohan Lundin Palmerius
+
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#include <HVR/HVRTrackerNode.hh>
+
+#include <Candy/Debug.hh>
+#include <math.h>
+
+using namespace H3D;
+using namespace HVR;
+
+H3D::H3DNodeDatabase HVRTrackerNode::database
+( "Tracker", NULL, typeid( HVRTrackerNode ),
+  &X3DNode::database );
+
+namespace TransferFunctionInternals {
+  FIELDDB_ELEMENT( HVRTrackerNode, eventSink, INPUT_ONLY );
+  
+  FIELDDB_ELEMENT( HVRTrackerNode, rawMatrix, OUTPUT_ONLY );
+  FIELDDB_ELEMENT( HVRTrackerNode, rawPosition, OUTPUT_ONLY );
+  FIELDDB_ELEMENT( HVRTrackerNode, rawOrientation, OUTPUT_ONLY );
+  
+  FIELDDB_ELEMENT( HVRTrackerNode, trackerMatrix, OUTPUT_ONLY );
+  FIELDDB_ELEMENT( HVRTrackerNode, trackerPosition, OUTPUT_ONLY );
+  FIELDDB_ELEMENT( HVRTrackerNode, trackerOrientation, OUTPUT_ONLY );
+  
+  FIELDDB_ELEMENT( HVRTrackerNode, positionCalibration, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( HVRTrackerNode, orientationCalibration, INPUT_OUTPUT );
+}
+
+HVRTrackerNode::HVRTrackerNode
+( Inst< SFNode > _metadata,
+  Inst< EventSink > _eventSink,
+  Inst< TSSField(SFMatrix4f) > _rawMatrix,
+  Inst< TSSField(SFVec3f) > _rawPosition,
+  Inst< TSSField(SFRotation) > _rawOrientation,
+  
+  Inst< CalibratedMatrix > _trackerMatrix,
+  Inst< CalibratedPosition > _trackerPosition,
+  Inst< CalibratedOrientation > _trackerOrientation,
+  
+  Inst< SFMatrix4f > _positionCalibration,
+  Inst< SFRotation > _orientationCalibration )
+  
+  : X3DChildNode( _metadata ),
+    eventSink( _eventSink ),
+    
+    rawMatrix( _rawMatrix ),
+    rawPosition( _rawPosition ),
+    rawOrientation( _rawOrientation ),
+    
+    trackerMatrix( _trackerMatrix ),
+    trackerPosition( _trackerPosition ),
+    trackerOrientation( _trackerOrientation ),
+    
+    positionCalibration( _positionCalibration ),
+    orientationCalibration( _orientationCalibration ) {
+  
+  type_name = "Tracker";
+  database.initFields(this);
+  
+  positionCalibration->setValue(Matrix4f(),id);
+  orientationCalibration->setValue(Rotation(),id);
+  
+  rawPosition->routeNoEvent(trackerPosition,id);
+  positionCalibration->routeNoEvent(trackerPosition,id);
+  
+  rawOrientation->routeNoEvent(trackerOrientation,id);
+  orientationCalibration->routeNoEvent(trackerOrientation,id);
+  
+  trackerPosition->routeNoEvent(trackerMatrix,id);
+  trackerOrientation->routeNoEvent(trackerMatrix,id);
+}
+
+HVRTrackerNode::~HVRTrackerNode(){}
+
+void HVRTrackerNode::traverseSG(H3D::TraverseInfo &ti){
+  eventSink->upToDate();
+}
+
+void HVRTrackerNode::EventSink::update() {
+  for( FieldVector::iterator it = routes_in.begin() ;
+       it != routes_in.end() ; ++ it ){
+    (*it)->upToDate(); }
+}
+
+void HVRTrackerNode::updateRawMatrix(const Matrix4f &m){
+  rawMatrix->setValue(m,id);
+  rawPosition->setValue(m.getTranslationPart(),id);
+  rawOrientation->setValue((Rotation)m.getRotationPart(),id);
+}
+
+void HVRTrackerNode::updateRawPositionOrientation(const Vec3f &x, const Rotation &r){
+  rawPosition->setValue(x,id);
+  rawOrientation->setValue(r,id);
+  Matrix4f m = (Matrix4f)r;
+  m[0][3] = x.x;
+  m[1][3] = x.y;
+  m[2][3] = x.z;
+  rawMatrix->setValue(m,id);
+}
+
+void HVRTrackerNode::CalibratedMatrix::update(){
+  assert(dynamic_cast<SFVec3f*>(routes_in[0]));
+  assert(dynamic_cast<SFMatrix4f*>(routes_in[1]));
+  
+  Vec3f x = dynamic_cast<SFVec3f*>(routes_in[0])->getValue();
+  Matrix4f m = (Matrix4f)dynamic_cast<SFMatrix4f*>(routes_in[1])->getValue();
+  m[0][3] = x.x;
+  m[1][3] = x.y;
+  m[2][3] = x.z;
+  value = m;
+}
+
+void HVRTrackerNode::CalibratedPosition::update(){
+  assert(dynamic_cast<SFVec3f*>(routes_in[0]));
+  assert(dynamic_cast<SFMatrix4f*>(routes_in[1]));
+  
+  Vec3f x = dynamic_cast<SFVec3f*>(routes_in[0])->getValue();
+  Matrix4f m = dynamic_cast<SFMatrix4f*>(routes_in[1])->getValue();
+  value = m * x;
+
+}
+
+void HVRTrackerNode::CalibratedOrientation::update(){
+  assert(dynamic_cast<SFRotation*>(routes_in[0]));
+  assert(dynamic_cast<SFRotation*>(routes_in[1]));
+  
+  Rotation o = dynamic_cast<SFRotation*>(routes_in[0])->getValue();
+  Rotation c = dynamic_cast<SFRotation*>(routes_in[1])->getValue();
+  value = c * o;
+}

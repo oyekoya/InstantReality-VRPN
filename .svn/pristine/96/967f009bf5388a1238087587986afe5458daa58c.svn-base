@@ -1,0 +1,98 @@
+/**
+   
+Copyright 2007, 2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+*/
+
+
+#include <HVR/HMDViewpoint.hh>
+
+#include <H3D/Scene.h>
+
+using namespace HVR;
+using namespace H3D;
+
+H3DNodeDatabase HMDViewpoint::database
+( "HMDViewpoint",
+  &(newInstance<HMDViewpoint>),
+  typeid( HMDViewpoint ),
+  &Viewpoint::database );
+
+namespace HMDViewpointInternals {
+  FIELDDB_ELEMENT( HMDViewpoint, tracker, INPUT_OUTPUT );
+}
+
+HMDViewpoint::HMDViewpoint
+( Inst< SFSetBind > _set_bind,
+  Inst< SFVec3f > _centerOfRotation,
+  Inst< SFString > _description,
+  Inst< SFFloat > _fieldOfView,
+  Inst< SFBool > _jump,
+  Inst< SFNode > _metadata,
+  Inst< SFOrientation > _orientation,
+  Inst< SFPosition > _position,
+  Inst< SFBool > _retainUserOffsets,
+  Inst< SFTime > _bindTime,
+  Inst< SFBool > _isBound,
+  Inst< SFMatrix4f > _accForwardMatrix,
+  Inst< SFMatrix4f > _accInverseMatrix,
+  Inst< SFTrackerNode > _tracker )
+  
+  : Viewpoint(_set_bind,
+              _centerOfRotation,
+              _description,
+              _fieldOfView,
+              _jump,
+              _metadata,
+              _orientation,
+              _position,
+              _retainUserOffsets,
+              _bindTime,
+              _isBound,
+              _accForwardMatrix,
+              _accInverseMatrix),
+    tracker( _tracker ) {
+  
+  type_name = "HMDViewpoint";
+  database.initFields( this );
+}
+
+void HMDViewpoint::SFTrackerNode::onAdd(Node *n){
+  TypedSFNode<HVRTrackerNode>::onAdd(n);
+  HMDViewpoint *parent =
+    static_cast<HMDViewpoint*>(owner);
+  HVRTrackerNode *tracker = dynamic_cast<HVRTrackerNode*>(n);
+  tracker->trackerPosition->route(parent->position);
+  tracker->trackerOrientation->route(parent->orientation);
+}
+
+void HMDViewpoint::SFTrackerNode::onRemove(Node *n){
+  TypedSFNode<HVRTrackerNode>::onRemove(n);
+  
+  if( n == NULL ){ return; }
+  
+  HMDViewpoint *parent = static_cast<HMDViewpoint*>(owner);
+  HVRTrackerNode *tracker = dynamic_cast<HVRTrackerNode*>(n);
+  
+  tracker->trackerPosition->unroute(parent->position);
+  tracker->trackerOrientation->unroute(parent->orientation);
+}

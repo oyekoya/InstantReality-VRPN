@@ -1,0 +1,218 @@
+import random
+import math
+import time
+import threading 
+
+#import the H3D fields and types
+from H3DInterface import *
+
+MAX_BRICKS = 100
+INI_BRICKS = 35
+
+#Counter for naming nodes, for instance CS1, T1, RB1...
+counter = 0
+radius = 0.12
+twopi = 6.28318531
+pi = 3.14159265
+bricks = 5
+
+# get the reference to the group to put the spheres in
+nodes = references.getValue()
+
+# create the sphere geometry
+
+# The AddSphere class adds a new sphere to the group nodes children
+# field each time a field routed to it generates an 1 event.
+class AddBox( AutoUpdate( SFBool ) ):
+  def update( self, event ):
+    if( event.getValue() ):
+      global counter
+      #Create transform node containg a shape-node
+      t, dn = createX3DNodeFromString( """\
+      <Transform DEF='T""" + str(counter) + """'>
+         <Shape DEF='SHAPE""" + str(counter) + """' >
+            <Appearance>
+              <Material DEF='MATERIAL""" + str(counter) + """' />
+              <SmoothSurface stiffness="0.7" />
+            </Appearance>
+            <Box DEF='BOX""" + str(counter) + """'/>
+         </Shape>
+      </Transform>""")
+
+      c = RGB( random.random(), random.random(), random.random() )
+      offset = ((counter/bricks)%2)*pi/bricks #Every second row have their angles offset by one half brick
+      angle = (counter%bricks)*twopi/bricks+offset #Brick angle
+      height = 0.025+0.05*(counter/bricks)-0.1
+      pos = Vec3f( radius*math.cos(angle), height, radius*math.sin(angle) )
+      rot = Rotation( 0, 1, 0, -angle )
+      size = Vec3f( 0.05, 0.05, 0.1 )
+      dn["MATERIAL"+str(counter)].diffuseColor.setValue( c )
+      dn["BOX"+str(counter)].size.setValue( size )
+      nodes[0].children.push_back( t ) #Push the transform node T into the GROUP node in the x3d file
+      
+      
+      #Create the CollidableShape node
+      cs, dn2 = createX3DNodeFromString( """\
+        <CollidableShape DEF='CS""" + str(counter) + """' containerField='collidables'/>""")
+
+      trans = Vec3f( 0.0, 0.0, 0.0 )        
+      cs.translation.setValue( trans )
+      dn2["CS" + str(counter)].shape.setValue( dn["SHAPE"+str(counter)] )   #Sets the SHAPEx node created above as the shape field of CSx (x = counter value)
+      nodes[2].collidables.push_back( cs ) #Push the CollidableShape node cs into the CollisionCollection group CC in the x3d-file
+      
+      #Create the RigidBody node
+      rb, dn3 = createX3DNodeFromString( """<RigidBody DEF='RB""" + str(counter) + """' mass='0.4' useGlobalGravity='true' fixed='false' />""")
+      rb.position.setValue( pos )
+      rb.orientation.setValue( rot )
+      rb.massDensityModel.setValue( dn["BOX"+str(counter)] )
+      rb.autoDamp.setValue( True )
+      rb.linearDampingFactor.setValue( 0.01 )
+      rb.angularDampingFactor.setValue( 0.01 )
+      #rb.autoDisable.setValue( True )
+      rb.disableAngularSpeed.setValue( 0.08 )
+      rb.disableLinearSpeed.setValue( 0.08 )
+      
+      dn3["RB"+str(counter)].geometry.push_back( dn2["CS"+str(counter)] ) #Pushes the CS node into the bodies mfnode of the RB
+      nodes[1].bodies.push_back( rb ) #Pushes the rb node into the RigidBodyCollection node RBC of the x3d-file
+      
+      # Set up the routes
+      dn3["RB"+str(counter)].position.route ( dn["T"+str(counter)].translation )  #CSx translation to Tx translation
+      dn3["RB"+str(counter)].orientation.route ( dn["T"+str(counter)].rotation )        #CSx rotation to Tx rotation
+      counter = counter + 1
+    
+      #print "drop brick. num of bricks: " + `counter`
+    if counter == MAX_BRICKS:
+      return True
+    return False
+ 
+# create an instance of the AddSphere class
+add_box = AddBox()
+
+
+# Additional function and fields for Tower and stuff
+# NOTICES
+class TextPos( AutoUpdate(TypedField(SFVec3f, (SFVec3f, SFRotation ) ) ) ):
+
+  def update( self, event ):
+    routes_in = self.getRoutesIn();
+    v = routes_in[0].getValue()
+    r = Rotation()
+    if len( routes_in ) > 1:
+      r = routes_in[1].getValue()
+    v_temp = Vec3f( v.x, v.y, v.z )
+    stereo_info = getActiveStereoInfo()
+    focal_distance = 0.6
+    if stereo_info:
+      focal_distance = stereo_info.focalDistance.getValue()
+    v_new = v - r * Vec3f( 0, 0, focal_distance )
+    return v_new
+
+textPos = TextPos()
+
+
+# TOWER CREATION AND RESETS
+last_wall_collidable = nodes[2].collidables.back()
+last_wall_rigidbody = nodes[1].bodies.back()
+wall_collidable = nodes[2].collidables.getValue()
+wall_rigidbody = nodes[1].bodies.getValue()
+auto_on = False
+
+def createTower( num_bricks ):
+  for n in range( num_bricks ):
+    dupe.touch()
+    
+def reset():
+  global counter, nodes, auto_on
+  auto_on = False
+  nodes[4].enabled.setValue( False )
+  for n in range( counter ):
+    nodes[0].children.pop_back()
+    if nodes[1].bodies.getValue() != wall_rigidbody:
+      nodes[1].bodies.pop_back()
+    if nodes[2].collidables.getValue() != wall_collidable:
+      nodes[2].collidables.pop_back()
+  counter = 0
+  createTower( INI_BRICKS )
+  vp = getActiveViewpoint()
+  vp.position.setValue( vp.position.getValue() )
+  vp.orientation.setValue( vp.orientation.getValue() )
+
+class MouseReset( AutoUpdate( SFBool ) ):
+  def update( self, event ):
+    if event.getValue():
+      reset()
+    return True
+
+class KeyReset( AutoUpdate( SFString ) ):
+  def update( self, event ):
+    if event.getValue() == 'r':
+      reset()
+    return ''
+
+dupe = SFBool()
+dupe.setValue( True )
+dupe.routeNoEvent( add_box )
+mReset = MouseReset()
+kReset = KeyReset()
+  
+# FORCE RESET AND WARNING 
+class ForceReset( AutoUpdate( SFBool ) ):
+  def update( self, event ):
+    if event.getValue():
+      reset()
+    return False
+
+forceReset = ForceReset()
+add_box.route( forceReset )
+
+
+# AUTO BOX FALL
+class Auto( AutoUpdate( TypedField( SFBool, (SFString, SFTime) ) ) ):
+  def update( self, event ):
+    global nodes, auto_on
+    ts = nodes[4]
+    ri = self.getRoutesIn()
+    if  event == ri[0] and ri[0].getValue() == 'a':
+      if auto_on:
+        ts.enabled.setValue( False )
+        auto_on = False
+      else:
+        ts.enabled.setValue( True )
+        ts.startTime.setValue( time.getValue() )
+        auto_on = True
+    if len(ri) > 1 and event == ri[1] and auto_on:
+      return True
+    return False
+        
+auto = Auto()
+auto.routeNoEvent( add_box )
+
+
+# PRINTS
+class PrintView( AutoUpdate( SFString ) ):
+  def update( self, event ):
+    if event.getValue() == 'v':
+      vp = getActiveViewpoint()
+      if vp:
+        print "viewpoint position: " + `vp.totalPosition.getValue()`
+        print "viewpoint orientation: " + `vp.totalOrientation.getValue()`
+    return ''
+    
+class PrintCounter( AutoUpdate( SFString ) ):
+  def update( self, event ):
+    if event.getValue() == 'c':
+      print 'Num of bricks: ' + `counter`
+    return ''
+
+printView = PrintView()
+printCounter = PrintCounter()
+
+
+def initialize():
+  createTower( INI_BRICKS )
+  #print "initialized"
+
+    
+  
+
+

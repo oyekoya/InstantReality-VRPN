@@ -1,0 +1,69 @@
+/**
+   
+Copyright 2007, 2010, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+
+*/
+
+
+#include <HVR/ARBackground.hh>
+
+#ifdef HAVE_ARTOOLKIT
+
+#include <Candy/Debug.hh>
+
+
+using namespace H3D;
+using namespace HVR;
+
+
+H3DNodeDatabase ARBackground::database
+( "ARBackground",
+  &(newInstance<ARBackground>),
+  typeid( ARBackground ),
+  &X3DBackgroundNode::database );
+
+namespace ARBackgroundInternals {
+  FIELDDB_ELEMENT( ARBackground, zoom, INPUT_OUTPUT );
+}
+
+ARBackground::ARBackground()
+  : X3DBackgroundNode(),
+    zoom( new SFFloat(1.f) ) {
+  
+  type_name = "ARBackground";
+  database.initFields( this );
+}
+
+
+void ARBackground::renderBackground(){
+
+  ARToolkit *art = ARToolkit::getActive();
+  if( !art ){
+    CANDY_RUNTIME_WARNING_ONCE("ARBackground",
+                               "No ARToolkit node found");
+    return;
+  }
+  art->renderCamera(zoom->getValue());
+}
+
+#endif
+

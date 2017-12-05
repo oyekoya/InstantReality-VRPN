@@ -1,0 +1,125 @@
+# Copyright 2006, Karljohan Lundin
+#
+
+"""This file provides scripts for Candy.
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+"""
+
+
+import socket
+
+from H3D import *
+from H3DInterface import *
+
+
+port = 3318
+hosts = [ "localhost",
+          "192.168.1.100",
+          "192.168.1.101",
+          "192.168.1.102",
+          "192.168.1.103" ]
+
+# incoming data
+valueI = SFVec3f()
+
+# outgoing data
+valueO = SFVec3f()
+
+
+class Connection:
+  
+  def __init__( self ):
+    self.connection = 0
+    for host in hosts:
+      try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.connect( (host,port) )
+        print "Connected to %s:%d" % ( host, port )
+        self.connection = sock
+        break
+      except socket.error, msg:
+        print "Connecting to %s:%d: %s" % ( host, port, msg )
+
+    if self.connection == 0:
+      try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        sock.bind( ("", 3318) )
+        sock.listen(1)
+        print "Waiting for other player..."
+        self.connection, self.address = sock.accept()
+        print "Connected to %s:%d" % self.address
+        sock.close()
+      except socket.error, msg:
+        print "Could not connect or create server socket!"
+        print msg
+        return
+      
+    self.connection.setblocking(0)
+
+  def receive( self ):
+    if not self.connection is None:
+      try:
+        data = self.connection.recv(2048)
+        if not data:
+          return -1
+        return data
+      except socket.error:
+        return ""
+      
+  def send( self, data ):
+    if not self.connection is None:
+      try:
+        self.connection.send(data)
+      except socket.error:
+        pass
+    
+conn = Connection()
+
+
+
+class Output( AutoUpdate( SFVec3f ) ):
+  def update(self,event):
+    x = event.getValue()
+    conn.send( "%f %f %f\n" % (x.x,x.y,x.z) )
+    return Vec3f(0,0,0)
+
+sender = Output()
+valueO.route(sender)
+
+class Control( AutoUpdate( SFTime ) ):
+  def update(self,event):
+    rcv = conn.receive()
+    
+    if rcv < 0:
+      return 0
+      
+    if not rcv == "":
+      commands = rcv.split("\n")
+      for command in commands:
+        values = command.split()
+        if len(values) == 3:
+          valueI.setValue( Vec3f( float(values[0]),
+                                  float(values[1]),
+                                  float(values[2]) ) )
+    return 0
+        
+control = Control()
+time.route(control)

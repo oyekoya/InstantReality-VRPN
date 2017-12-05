@@ -1,0 +1,107 @@
+/**
+   Copyright 2003-2005, Karljohan Lundin
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+
+#ifndef _CANDY_FORCETORQUEICON_HH_
+#define _CANDY_FORCETORQUEICON_HH_
+
+#include <Candy/Candy.hh>
+
+#include <H3D/IndexedLineSet.h>
+
+#include <H3D/SFFloat.h>
+
+
+namespace Candy {
+  
+  /**
+     This node generates arrows to visually represent forces and
+     torques. This can be used together with a pen model as the
+     graphical representation of the haptic instrument or as a
+     separate icon. The node provides only lines without colour, so
+     appearance and material properties must be separately specified.
+     
+     \beginX3D
+     \exposedField  force \n1 SFVec3f \n2 (0,0,0) \n3
+      The force to visualize. \eol
+     \exposedField  torque \n1 SFVec3f \n2 (0,0,0) \n3
+      The torque to visualize. \eol
+     \exposedField  forceScale \n1 SFFloat \n2 0.1 \n3
+      Visual scaling of the incoming force. \eol
+     \exposedField  torqueScale \n1 SFFloat \n2 1.0 \n3
+      Visual scaling of the incoming torque. The incoming torque is
+      transformed from Newtons to radians so an unscaled torque of
+      6.28 would be rendered as a full revolution. \eol
+     \exposedField  torqueRadius \n1 SFFloat \n2 0.02 \n3
+      The radius at which the torque is rendered. \eol
+     \exposedField  arrowHeadSize \n1 SFFloat \n2 0.005 \n3
+      The size of arrow heads. Specify zero if no arrow heads should
+      be rendered. \eol
+     \endX3D
+  */
+  class CANDY_API ForceTorqueIcon :
+    public H3D::IndexedLineSet {
+  public:
+    
+    ForceTorqueIcon();
+    
+    /** The force to visualize. */
+    auto_ptr< H3D::SFVec3f > force;
+    
+    /** The torque to visualize. */
+    auto_ptr< H3D::SFVec3f > torque;
+    
+    /** Visual scaling of the incoming force. */
+    auto_ptr< H3D::SFFloat > forceScale;
+    
+    /** Visual scaling of the incoming torque. The incoming torque is
+        transformed from Newtons to radians so an unscaled torque of
+        6.28 would be rendered as a full revolution. */
+    auto_ptr< H3D::SFFloat > torqueScale;
+    
+    /** The radius at which the torque is rendered. */
+    auto_ptr< H3D::SFFloat > torqueRadius;
+    
+    /** The size of arrow heads. Specify zero if no arrow heads should
+        be rendered. */
+    auto_ptr< H3D::SFFloat > arrowHeadSize;
+    
+    /** */
+    static H3D::H3DNodeDatabase database;
+    
+  protected:
+    struct CANDY_API Update
+      : public H3D::TypedField< H3D::Field,
+                                void,
+                                H3D::AnyNumber< H3D::Field > > {
+      virtual void update() {
+        static_cast<ForceTorqueIcon*>(owner)->createLines();
+      }
+    };
+    friend struct Update;
+    
+    auto_ptr< Update > update;
+    
+    void createLines();
+  };
+}
+
+#endif

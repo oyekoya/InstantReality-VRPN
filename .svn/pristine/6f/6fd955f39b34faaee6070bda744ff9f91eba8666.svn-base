@@ -1,0 +1,67 @@
+# - Find ARTOOLKIT
+# Find the native ARTOOLKIT headers and libraries.
+#
+#  ARToolkit_INCLUDE_DIR -  where to find header files.
+#  ARToolkit_LIBRARIES    - List of libraries when using ARToolkit.
+#  ARToolkit_FOUND        - True if ARToolkit found.
+
+
+# Look for the header file.
+FIND_PATH(ARToolkit_INCLUDE_DIR NAMES AR/ar.h
+                             PATHS $ENV{H3D_EXTERNAL_ROOT}/include
+                                   ../../External/include )
+MARK_AS_ADVANCED(ARToolkit_INCLUDE_DIR)
+
+# Look for the library.
+FIND_LIBRARY(ARToolkit_LIBRARY NAMES AR
+                            PATHS $ENV{H3D_EXTERNAL_ROOT}/lib
+                                  ../../External/lib )
+MARK_AS_ADVANCED(ARToolkit_LIBRARY)
+
+FIND_LIBRARY(ARToolkit_video_LIBRARY NAMES ARvideo
+                            PATHS $ENV{H3D_EXTERNAL_ROOT}/lib
+                                  ../../External/lib )
+MARK_AS_ADVANCED(ARToolkit_video_LIBRARY)
+
+FIND_LIBRARY(ARToolkit_gsub_lite_LIBRARY NAMES ARgsub_lite
+                            PATHS $ENV{H3D_EXTERNAL_ROOT}/lib
+                                  ../../External/lib )
+MARK_AS_ADVANCED(ARToolkit_gsub_lite_LIBRARY)
+
+FIND_LIBRARY(ARToolkit_gstreamer_LIBRARY NAMES gstreamer-0.10
+                            PATHS $ENV{H3D_EXTERNAL_ROOT}/lib
+                                  ../../External/lib )
+MARK_AS_ADVANCED(ARToolkit_gstreamer_LIBRARY)
+
+# Copy the results to the output variables.
+IF(ARToolkit_INCLUDE_DIR AND
+    ARToolkit_LIBRARY AND
+    ARToolkit_video_LIBRARY AND
+    ARToolkit_gsub_lite_LIBRARY)
+  SET(ARToolkit_FOUND 1)
+
+  SET(ARToolkit_LIBRARIES ${ARToolkit_video_LIBRARY} ${ARToolkit_gsub_lite_LIBRARY} ${ARToolkit_gstreamer_LIBRARY} ${ARToolkit_LIBRARY})
+  SET(ARToolkit_INCLUDE_DIR ${ARToolkit_INCLUDE_DIR})
+
+ELSE(ARToolkit_INCLUDE_DIR AND
+    ARToolkit_LIBRARY AND
+    ARToolkit_video_LIBRARY AND
+    ARToolkit_gsub_lite_LIBRARY)
+  SET(ARToolkit_FOUND 0)
+  SET(ARToolkit_LIBRARIES)
+  SET(ARToolkit_INCLUDE_DIR)
+ENDIF(ARToolkit_INCLUDE_DIR AND
+  ARToolkit_LIBRARY AND
+  ARToolkit_video_LIBRARY AND
+  ARToolkit_gsub_lite_LIBRARY)
+
+# Report the results.
+IF(NOT ARToolkit_FOUND)
+  SET(ARToolkit_DIR_MESSAGE
+    "ARToolkit was not found.")
+  IF(ARToolkit_FIND_REQUIRED)
+    MESSAGE(FATAL_ERROR "${ARToolkit_DIR_MESSAGE}")
+  ELSEIF(NOT ARToolkit_FIND_QUIETLY)
+    MESSAGE(STATUS "${ARToolkit_DIR_MESSAGE}")
+  ENDIF(ARToolkit_FIND_REQUIRED)
+ENDIF(NOT ARToolkit_FOUND)

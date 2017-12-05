@@ -1,0 +1,96 @@
+/**
+   Copyright 2006-2008, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#include <Candy/XSplinePositionInterpolator.hh>
+#include <Candy/xSpline.hh>
+
+
+using namespace Candy;
+using namespace H3D;
+
+
+H3DNodeDatabase XSplinePositionInterpolator::database
+( "XSplinePositionInterpolator", 
+  &(newInstance<XSplinePositionInterpolator>), 
+  typeid( XSplinePositionInterpolator ),
+  &X3DInterpolatorNode::database );
+
+
+namespace XSplinePositionInterpolatorInternals {
+  FIELDDB_ELEMENT( XSplinePositionInterpolator, keyValue, INPUT_OUTPUT );
+  FIELDDB_ELEMENT( XSplinePositionInterpolator, value_changed, OUTPUT_ONLY );
+  FIELDDB_ELEMENT( XSplinePositionInterpolator, closed, INPUT_OUTPUT );
+}
+
+
+XSplinePositionInterpolator::XSplinePositionInterpolator
+( Inst< SFNode  > _metadata, 
+  Inst< SFFloat > _set_fraction,
+  Inst< MFFloat > _key,
+  Inst< MFVec3f > _keyValue,
+  Inst< MFFloat > _keyWeight,
+  Inst< SFValue > _value_changed,
+  Inst< SFBool  > _closed )
+  : X3DInterpolatorNode( _metadata,
+                         _set_fraction,
+                         _key ),
+    keyValue     ( _keyValue      ),
+    keyWeight    ( _keyWeight     ),
+    value_changed( _value_changed ),
+    closed( _closed ) {
+  
+  type_name = "XSplinePositionInterpolator";
+  database.initFields( this );
+  
+  closed->setValue(false);
+  
+  set_fraction->route( value_changed, id );
+  key->route( value_changed, id );
+  keyValue->route( value_changed, id );
+  keyWeight->route( value_changed, id );
+  closed->route( value_changed, id );
+}
+
+
+void XSplinePositionInterpolator::SFValue::update() {
+  XSplinePositionInterpolator *interpolator = 
+    static_cast<XSplinePositionInterpolator*>( getOwner() );
+  H3DFloat fraction = 
+    static_cast<SFFloat*>(routes_in[0])->getValue( interpolator->id );
+  const vector< float > &keys =
+    static_cast<MFFloat*>(routes_in[1])->getValue( interpolator->id );
+  const vector< Vec3f > &values = 
+    static_cast<MFVec3f*>(routes_in[2])->getValue( interpolator->id );
+  bool closed = 
+    static_cast<SFBool*>(routes_in[3])->getValue( interpolator->id );
+  
+  int n_keys = std::min( values.size(), keys.size() );
+  
+  if( fraction <= 0 ){
+    value = values[0]; }
+  else if( fraction >= 1 ){
+    value = values[n_keys-1]; }
+  else {
+    double t = fraction * (n_keys-1);
+    
+    value = xSpline<Vec3f>::evaluate( values, keys, t );
+  }
+}

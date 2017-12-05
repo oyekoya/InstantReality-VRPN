@@ -1,0 +1,95 @@
+/**
+
+Copyright 2005, 2010 Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+/**
+   \mainpage
+   
+   This is the documentation for the H3D HVR package
+   (
+   \htmlinclude HVR_VERSION for
+   \htmlinclude H3D_VERSION
+   )
+   
+   The HVR package is a collection of tools and X3D nodes for use
+   with the H3D API. See the README.txt file for more information, or
+   use this Doxygen documentation for the X3D nodes of the package.
+*/
+
+
+
+#ifndef _HVR_HH_
+#define _HVR_HH_
+
+#ifdef WIN32
+#define NOMINMAX
+#include <windows.h>
+#ifdef CANDY_EXPORTS
+#define HVR_API __declspec(dllexport)
+#else
+#define HVR_API __declspec(dllimport)
+#endif
+#ifdef _MSC_VER
+// disable dll-interface warnings for stl-exports 
+#pragma warning( disable: 4251 )
+#define _USE_MATH_DEFINES
+#endif
+
+
+#endif
+
+#if defined(__APPLE__) && defined(__MACH__)
+#define HVR_API
+#define HAVE_SYS_TIME_H
+#endif
+
+#if defined(__linux)
+#define HVR_API
+#define HAVE_SYS_TIME_H
+#endif
+
+
+#cmakedefine HAVE_GADGETEER
+#cmakedefine HAVE_ARTOOLKIT
+#cmakedefine HAVE_VRPN
+#cmakedefine HAVE_FREENECT
+#cmakedefine HAVE_ISENSE
+
+#cmakedefine HVR_USE_THREADSAFE_FIELDS
+
+#ifdef HVR_USE_THREADSAFE_FIELDS
+#define TSSField(TYPE) H3D::ThreadSafeSField< TYPE >
+#define TSSFNode(TYPE) H3D::ThreadSafeRefSField< TYPE >
+#define TSMField(TYPE) H3D::ThreadSafeMField< TYPE >
+#else
+#define TSSField(TYPE) TYPE
+#define TSSFNode(TYPE) TYPE
+#define TSMField(TYPE) TYPE
+#endif
+
+#if H3D_MAJOR_VERSION > 2 or (H3D_MAJOR_VERSION == 2 and H3D_MINOR_VERSION > 1)
+#define HVR_HAVE_HEAD_TILT
+#endif
+
+#endif
+

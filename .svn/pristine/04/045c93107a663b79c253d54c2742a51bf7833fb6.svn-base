@@ -1,0 +1,75 @@
+/**
+   Copyright 2006-2008, Karljohan Lundin Palmerius
+   
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+*/
+
+#ifndef _CANDY_XSPLINEINTERPOLATOR_HH_
+#define _CANDY_XSPLINEINTERPOLATOR_HH_
+
+#include <Candy/Candy.hh>
+
+#include <H3D/X3DInterpolatorNode.h>
+#include <H3D/SFVec3f.h>
+#include <H3D/MFVec3f.h>
+#include <H3D/SFBool.h>
+
+namespace Candy {
+  
+  /**
+     This is a position interpolator that is using the x-spline to
+     define the path. X-Spline is an alternative to traditional
+     splines and was introduced by Carole Blanc and Christophe Schlick
+     in 1995. It is capable of defining a mixture of corners that are
+     of various softness so that both a smooth bend and hard corners
+     can be defined in the same path.
+  */
+  class CANDY_API XSplinePositionInterpolator
+    : public H3D::X3DInterpolatorNode {
+    
+  public:
+    
+    struct CANDY_API SFValue
+      : H3D::TypedField< H3D::SFVec3f,
+                         H3D::Types< H3D::SFFloat,
+                                     H3D::MFFloat,
+                                     H3D::MFVec3f,
+                                     H3D::SFBool > > {
+      virtual void update();
+    };
+    
+    XSplinePositionInterpolator
+    ( H3D::Inst< H3D::SFNode  > _metadata      = 0,
+      H3D::Inst< H3D::SFFloat > _set_fraction  = 0,
+      H3D::Inst< H3D::MFFloat > _key           = 0,
+      H3D::Inst< H3D::MFVec3f > _keyValue      = 0,
+      H3D::Inst< H3D::MFFloat > _keyWeight     = 0,
+      H3D::Inst< SFValue      > _value_changed = 0,
+      H3D::Inst< H3D::SFBool  > _closed        = 0 );
+    
+    static H3D::H3DNodeDatabase database;
+    
+    auto_ptr< H3D::MFVec3f > keyValue;
+    auto_ptr< H3D::MFFloat > keyWeight;
+    auto_ptr< SFValue      > value_changed;
+    auto_ptr< H3D::SFBool  > closed;
+  };
+}
+
+#endif
+

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2005, Karljohan Lundin
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Group>
+  <Shape>
+    <Appearance DEF="APP">
+      <Material
+          shininess="0.9"
+          diffuseColor=".85 .85 .85"
+          specularColor="1 1 1"/>
+    </Appearance>
+    <Sphere radius="0.001"/>
+  </Shape>
+  <Transform translation="0 0 0.02" rotation="1 0 0 -1.570796" >
+    <Shape>
+      <Appearance USE="APP" />
+      <Cone bottomRadius="0.003" bottom="false" height="0.02"/>
+    </Shape>
+  </Transform>
+  <Transform translation="0 0 0.08" rotation="1 0 0 1.570796" >
+    <Shape>
+      <Appearance USE="APP" />
+      <Cone bottomRadius="0.003" bottom="false" height="0.1"/>
+    </Shape>
+  </Transform>
+  <Transform translation="0 0 0.08" rotation="1 0 0 -1.570796" >
+    <Shape>
+      <Appearance USE="APP" />
+      <Cone bottomRadius="0.005" bottom="false" height="0.1"/>
+    </Shape>
+  </Transform>
+  <Transform scale="1 1 .5" translation="0 0 0.13" >
+    <Shape>
+      <Appearance USE="APP" />
+      <Sphere radius="0.005"/>
+    </Shape>
+  </Transform>
+</Group>

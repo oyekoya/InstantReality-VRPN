@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+
+Copyright 2005, Karljohan Lundin
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+-->
+<Group>
+  
+  <Background
+      skyColor="0.0 0.0 0.0"/>
+  
+  <Transform
+      DEF="T">
+    
+    <Shape>
+      <Appearance>
+        <Material />
+      </Appearance>
+      <Box
+          size="0.05 0.1 0.2" />
+    </Shape>
+    
+  </Transform>
+  
+  
+  <TimeSensor
+      DEF="TIME"
+      cycleInterval="10"
+      startTime="0"
+      loop="true" />
+  
+  <OrientationInterpolator
+      DEF="INT"
+      key="0 .25 .5 .75 1"
+      keyValue="0 1 0 0
+                0 1 0 1.57
+                0 1 0 3.1416
+                0 1 0 4.71
+                0 1 0 0" />
+  
+  <ROUTE fromNode="TIME" fromField="fraction_changed"
+         toNode="INT" toField="set_fraction" />
+  <ROUTE fromNode="INT" fromField="value_changed"
+         toNode="T" toField="rotation" />
+  
+  
+  <PythonScript
+      url="urn:candy:python/Shell_tk.py">
+    <Transform
+        containerField="references"
+        USE="T" />
+    <Node USE="TIME" containerField="references" />
+    <Node USE="INT" containerField="references" />
+  </PythonScript>
+  
+</Group>
+
+

@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE X3D PUBLIC "ISO//Web3D//DTD X3D 3.0//EN" "http://www.web3d.org/specifications/x3d-3.0.dtd">
+<X3D xmlns:xsd='http://www.w3.org/2001/XMLSchema-instance' profile='Full' version='3.0' xsd:noNamespaceSchemaLocation='http://www.web3d.org/specifications/x3d-3.0.xsd'>
+  <Scene DEF='scene'>
+    <IOSensor DEF='io' type='FooNode' randMax='10' >
+      <field accessType='outputOnly' name='pos*' type='SFVec3f'/>
+      <field accessType='outputOnly' name='rot*' type='SFRotation'/>
+    </IOSensor>
+    <Shape>
+      <Text DEF='text' string='"Pos: undef" "Rot: undef"'/>
+    </Shape>
+    <Script DEF='print'>
+      <field accessType='initializeOnly' name='text' type='SFNode'>
+        <Text USE='text'/>
+      </field>
+      <field accessType='inputOnly' name='pos' type='SFVec3f'/>
+      <field accessType='inputOnly' name='rot' type='SFRotation'/><![CDATA[javascript:
+
+  //--------------------
+  function pos(value) 
+  {
+    text.string[0] = 'Pos: ' + value; 
+  }
+
+  //--------------------
+  function rot(value) 
+  {
+    text.string[1] = 'Rot: ' + value; 
+  }
+
+  ]]>
+    </Script>
+    <ROUTE fromNode='io' fromField='pos*' toNode='print' toField='pos'/>
+    <ROUTE fromNode='io' fromField='rot*' toNode='print' toField='rot'/>
+  </Scene>
+</X3D>

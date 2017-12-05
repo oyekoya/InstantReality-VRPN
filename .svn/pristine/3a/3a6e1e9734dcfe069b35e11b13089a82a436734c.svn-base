@@ -1,0 +1,72 @@
+from H3D import *
+from H3DInterface import *
+
+# Create X3D nodes
+
+if (not references.empty()):
+	graspTrans, = references.getValue()
+
+group, nodes = createX3DNodeFromString( \
+"""  
+<Group>
+	<PythonScript url="urn:candy:python/AutoLoadSO.py"/>
+	<PythonScript url="urn:candy:python/CorrectViewpoint.py"/> 
+	<KeySensor DEF="KEY" />
+	<SMViewpoint
+		screenLowerLeft="-0.26 -0.15 0"
+		screenUpperRight="0.26  0.15 0"
+		DEF="VP">						
+	
+		<VRPNTracker DEF="HEAD" connectionString="Tracker0@localhost" sensor="0" positionCalibration="1  0      0      0
+																									  0  0.5   -0.866  0
+																									  0  0.866  0.5    0.4103
+																									  0  0      0      1"/>
+
+	</SMViewpoint>
+	<DeviceInfo>
+		<FakeHapticsDevice DEF='FDEV'>
+			<RuspiniRenderer/>
+			<Group containerField='stylus'>
+				<Shape>
+					<Appearance>
+						<Material/>
+					</Appearance>
+					<Sphere DEF="PROXY" radius = "0.000025"/>
+				</Shape>
+				<Transform translation="0 0.001025 0">
+					<Shape>
+						<Sphere radius="0.001"/>
+						<Appearance>
+							<Material diffuseColor="0.3 0.3 0.3"/>
+						</Appearance>
+					</Shape>
+				</Transform>
+				<Transform translation="0 0.036 0">
+					<Shape>
+						<Cylinder radius=".0005" height=".07"/>
+						<Appearance>
+							<Material diffuseColor="0.7 0.7 0.7"/>
+						</Appearance>
+					</Shape>
+				</Transform>
+			</Group>
+		</FakeHapticsDevice>
+	</DeviceInfo>
+	<VRPNTracker DEF="STY" containerField="children" connectionString="Tracker0@localhost" sensor="1" positionCalibration= "1  0      0      0
+																															0  0.5   -0.866  0
+																															0  0.866  0.5    0.4103
+																															0  0      0      1"
+																						           orientationCalibration= "1  0      0      2.0944"/>	
+</Group>""")
+
+
+# Route the stylus VRPNTracker to the FakeHapticsDevice
+nodes['STY'].trackerPosition.route(nodes['FDEV'].set_devicePosition)
+nodes['STY'].trackerOrientation.route(nodes['FDEV'].set_deviceOrientation)
+nodes['STY'].mainButton.route(nodes['FDEV'].set_mainButton)
+
+# Route the FakeHapticsDevice to the GraspTransform
+if (not references.empty()):
+	nodes['FDEV'].mainButton.route(graspTrans.grasp)
+	nodes['FDEV'].devicePosition.route(graspTrans.graspPosition)
+	nodes['FDEV'].deviceOrientation.route(graspTrans.graspOrientation)

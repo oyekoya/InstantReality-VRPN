@@ -1,0 +1,145 @@
+/**
+   
+Copyright 2007-2008, Karljohan Lundin Palmerius
+
+
+
+This file is part of Candy.
+
+Candy is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+
+Candy is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with Candy; if not, write to the Free Software
+Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
+
+*/
+
+
+#ifndef _HVR_ARTOOLKIT_HH_
+#define _HVR_ARTOOLKIT_HH_
+
+#include <HVR/HVR.hh>
+
+#ifdef HAVE_ARTOOLKIT
+    
+#include <H3D/X3DChildNode.h>
+#include <H3D/H3DNodeDatabase.h>
+#include <H3D/X3DBindableNode.h>
+
+#include <H3D/SFString.h>
+#include <H3D/MFString.h>
+#include <H3D/MFInt32.h>
+#include <H3D/SFInt32.h>
+#include <H3D/SFFloat.h>
+#include <H3D/MFVec2d.h>
+#include <H3D/MFDouble.h>
+
+#include <GL/glew.h>
+#include <AR/ar.h>
+#include <AR/video.h>
+#include <AR/gsub_lite.h>
+
+/// H3D ARToolkit Bridge
+namespace HVR {
+
+  class MarkerTracker;
+  class ARBackground;
+  
+  /**
+     ARToolkit is a bindable node that takes care of all communication
+     with the ARToolKit. It is used much like a singleton, where one
+     instance is created at initialization of the application and
+     subsequently used by any other part of this bridge. One and only
+     one ARToolkit node is required.
+     
+     \beginX3D
+     \field videoConfiguration \n1 SFString \n2 "" \n3 \eol
+     \field cameraConfiguration \n1 SFString \n2 "Data/camera_para.dat" \n3 \eol
+     \field markerConfiguration \n1 MFString \n2 [] \n3 \eol
+     \exposedField markerCenter \n1 MFVec2d \n2 [] \n3 \eol
+     \exposedField markerWidth \n1 MFDouble \n2 [] \n3 \eol
+     \exposedField threshold \n1 SFInt32 \n2 100 \n3 \eol
+     \field maxCameraRate \n1 SFFloat \n2 100 \n3
+      The maximum image update rate in Hz. \eol
+     \eventOut dataObsolete \n1 Field \n2 \n3 \eol
+     \endX3D
+     
+  */
+  class HVR_API ARToolkit
+    : public H3D::X3DBindableNode {
+  
+  public:
+    /** Initializes local members */
+    ARToolkit();
+
+    /** Destructor */
+    ~ARToolkit();
+    
+    /** Get the top of the bindable stack for this node. */
+    static inline ARToolkit *getActive() {
+      return static_cast< ARToolkit* >
+        ( X3DBindableNode::getActive( "ARToolkit" ) );
+    }
+    
+    static H3D::H3DNodeDatabase database;
+    
+    void initialize();
+    
+    void traverseSG( H3D::TraverseInfo &ti );
+    
+    
+    auto_ptr< H3D::SFString > videoConfiguration;
+    auto_ptr< H3D::SFString > cameraConfiguration;
+    auto_ptr< H3D::MFString > markerConfiguration;
+    
+    auto_ptr< H3D::MFVec2d  > markerCenter;
+    auto_ptr< H3D::MFDouble > markerWidth;
+    
+    auto_ptr< H3D::SFInt32  > threshold;
+    auto_ptr< H3D::SFFloat  > maxCameraRate;
+    
+    auto_ptr< H3D::SFBool   > drawByTexture;
+    auto_ptr< H3D::SFBool   > drawHalfImage;
+    
+    auto_ptr< H3D::Field    > dataObsolete;
+    
+    inline const int* getVideoSize() const {
+      return size; }
+    
+  private:
+    
+    bool update();
+    
+    void renderCamera(float zoom);
+    
+    bool getMarker(int id, H3D::Matrix4f &m, bool cont = false);
+    bool getCamera(int id, H3D::Matrix4f &m, bool cont = false);
+    
+    int size[2];
+    
+    H3DUtil::TimeStamp last_time;
+    
+    ARParam camera;
+    ARGL_CONTEXT_SETTINGS_REF gl_context;
+    
+    ARUint8 *video_data;
+    ARMarkerInfo *markers;
+    int n_markers;
+    
+    bool is_initialized;
+    
+    friend class MarkerTracker;
+    friend class ARBackground;
+  };
+}
+
+#endif
+#endif
